@@ -1,12 +1,13 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Pixel Fold (felix) first light
 
-Status (2026-10-13): first light booted from slot B. SSH came up at
-`root@172.16.42.1`, both cluster watchdogs were stopped, and DSI and UFS
-stayed disabled. The cover kept the bootloader's Google logo because this
-image does not take over the framebuffer. The inner panel stayed off.
-GrapheneOS is still on slot A. The bootloader is unlocked. Slot B has not
-been marked successful.
+Status (2026-10-13): slot B boots and SSH comes up at `root@172.16.42.1`.
+The cover shows the Linux console after the cover controller's trigger is
+unmasked (`DECON1` `TRIG_CON` `0x1c241030` written with `0x3061`). The inner
+controller stays masked. The inner panel keeps the bootloader logo, including
+while the phone is folded, because this kernel does not turn that panel off.
+Do not reset it or program its DSI. GrapheneOS is still on slot A. Slot B
+has not been marked successful.
 
 ## Facts
 
@@ -28,10 +29,11 @@ Fold's splash lives elsewhere. The first boot reads the injected node from
 ## What this tree enables
 
 `gs201-felix.dts` (kernel branch `omandroid-felix`) enables the USB
-controller and relies on the SoC tree for the cluster watchdogs. Both
-panels, both touch controllers, the GPU, and UFS stay disabled. The
-initramfs does not write the 7 Pro display trigger register and does not
-read the display DMA registers.
+controller, the cover framebuffer the bootloader is already scanning, and
+relies on the SoC tree for the cluster watchdogs. Both panel nodes, both
+touch controllers, the GPU, and UFS stay disabled. The initramfs writes
+the cover trigger only. It does not write the 7 Pro register `0x1c240030`
+and it does not read the display DMA registers.
 
 `device/felix/device.conf` is what `bin/omamobile` reads. The default
 device stays cheetah. A Fold image is `DEVICE=felix`.
@@ -39,11 +41,12 @@ device stays cheetah. A Fold image is `DEVICE=felix`.
 ## First boot
 
 Phone folded. Flash only slot B. Slot A stays GrapheneOS. Expect SSH at
-`root@172.16.42.1`. The inner panel stays at the bootloader's off state
-because nothing in the tree has its reset pin or its rails. The cover
-can keep showing the bootloader logo; that is not a hung boot.
+`root@172.16.42.1` and a Linux console on the cover. The inner panel keeps
+the bootloader logo, through the hinge crack as well. Nothing in the tree
+has its reset pin or its rails.
 
-Stop if the cover panel changes brightness on its own, if the inner panel
-lights, or if the phone does not come back to slot A after a bad boot.
+Stop if the inner picture changes from that logo, if the cover brightness
+changes on its own, or if the phone does not come back to slot A after a
+bad boot.
 Hold volume down and power for Fastboot Mode, then
 `fastboot --set-active=a`.

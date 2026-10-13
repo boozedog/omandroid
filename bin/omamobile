@@ -240,7 +240,15 @@ cmd_initramfs() {
       -o "$stage/usr/local/bin/omamobile-bootctl" "$sysroot/usr/lib/crt1.o" "$sysroot/usr/lib/crti.o" \
       "$ROOT/packages/$DEV_PACKAGE/src/omamobile-bootctl.c" -L"$sysroot/usr/lib" -lc "$builtins" "$sysroot/usr/lib/crtn.o"
   else
-    say "No $DEV_PACKAGE host tools; initramfs has no devmem, reboot-to, or bootctl"
+    # No Android clang and no musl sysroot yet. The freestanding devmem is
+    # enough for the cover trigger; reboot-to and bootctl stay absent.
+    command -v clang >/dev/null || die "no clang on PATH; needed to build devmem"
+    command -v ld.lld >/dev/null || die "no ld.lld on PATH; needed to build devmem"
+    mkdir -p "$stage/usr/local/bin"
+    clang --target=aarch64-linux-gnu -nostdlib -static -ffreestanding -fno-builtin -fuse-ld=lld -O2 \
+      -o "$stage/usr/local/bin/devmem" "$ROOT/tools/devmem-freestanding.c" \
+      || die "freestanding devmem failed to link"
+    say "No $DEV_PACKAGE host tools; built freestanding devmem only (no reboot-to, no bootctl)"
   fi
   mkdir -p "$stage/root/.ssh"
   cat "$HOME"/.ssh/*.pub > "$stage/root/.ssh/authorized_keys"

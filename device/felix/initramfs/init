@@ -1,8 +1,8 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
-# Pixel Fold first-light init: USB networking and ssh.
-# No display register writes. The bootloader's framebuffer is left alone,
-# and neither panel is programmed.
+# Pixel Fold first-light init: USB networking, ssh, and the cover console.
+# The only display write is the cover controller's trigger, below.
+# The inner panel is never reset, powered, or programmed.
 # Host side: the phone appears as a USB network adapter; ssh root@172.16.42.1
 
 export PATH=/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
@@ -64,6 +64,18 @@ ufs_ro_log "guard running (pid $!)"
 hostname omamobile
 
 say() { echo "omamobile: $*" | tee /dev/kmsg > $SCREEN 2>/dev/null; }
+
+# Cover controller only: DECON1 TRIG_CON. ABL leaves it at 0x3070, which
+# masks the hardware trigger, so the panel keeps the bootloader logo.
+# 0x3061 clears HW_TRIG_MASK_DECON and sets HW_TRIG_EN. The 7 Pro writes
+# the same value to DECON0 at 0x1c240030; that is the inner panel here
+# and must not be written. devmem's second argument is the value, not a width.
+if devmem 0x1c241030 0x3061 >/dev/null; then
+  say "cover refresh armed"
+else
+  say "cover refresh failed"
+fi
+clear > $SCREEN 2>/dev/null
 
 say "first light on $(cat /proc/sys/kernel/osrelease)"
 

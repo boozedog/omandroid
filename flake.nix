@@ -33,6 +33,8 @@
             e2fsprogs
             erofs-utils
             unzip
+            clang
+            lld
           ];
         };
       });
