@@ -19,6 +19,7 @@ The status of each phone, as verified on real hardware. What's still missing and
 | Device | Codename | SoC | Boot | Storage | Display | GPU | Touch | Buttons | USB net | Wi-Fi | Bluetooth | Battery | Charging | Haptics | Torch | GNSS | AoC | Speakers/mics | Sensors | Modem | NFC | Cameras | Suspend | Fingerprint |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Pixel 7 Pro | cheetah | gs201 (Tensor G2) | works | works | works (120 Hz) | works (DVFS) | works | works | works | works | works (audio) | works | testing | works | works | works | works | works (quieter than stock) | works | WIP | works | WIP (ultrawide works) | WIP | WIP |
+| Pixel Fold | felix | gs201 (Tensor G2) | WIP | no | no | no | no | no | works | no | no | no | no | no | no | no | no | no | no | no | no | no | no | no |
 | *Template* | *codename* | *SoC* | | | | | | | | | | | | | | | | | | | | | | |
 
 ## cheetah (Pixel 7 Pro) in detail
@@ -48,6 +49,17 @@ The status of each phone, as verified on real hardware. What's still missing and
 | Suspend | WIP | `pm_test` dry runs pass, and s2idle freezes sleep and wake with Wi-Fi unloaded: on a key, and 20 of 20 unattended RTC-alarm cycles with the AoC and sensors running (S3b, S4); UFS defaults to `spm_lvl` 5. Wi-Fi now stays up across a freeze (the D3 handshake fixed, S5b-3); not on by default until the S5c soak and battery numbers (S5c-S8). Deep sleep (SYS_SLEEP) not started | [SUSPEND-PLAN](../device/cheetah/SUSPEND-PLAN.md) |
 | Fingerprint | WIP | Trusty runs at every boot (the AoC starts through it), the fingerprint kernel passed its first boot (F1), the sensor's rail reads off at 3.3 V (FB2), and Trusty serves the fingerprint side read-only (F2). Google's HAL in a chroot behind a bridge (`omamobile-fingerprint`) and a libfprint driver for fprintd are built and tested offline; the sensor hasn't been powered, and the first secure-storage write waits for an explicit go | [FINGERPRINT-PLAN](../device/cheetah/FINGERPRINT-PLAN.md), [FINGERPRINT-RESEARCH](../device/cheetah/FINGERPRINT-RESEARCH.md) |
 
+## felix (Pixel Fold) in detail
+
+First light on 2026-10-13, tracked in [#3](https://github.com/derekross/omarchy-mobile/issues/3). The inner panel is not described and must not be driven.
+
+| Subsystem | Status | Notes | Plan |
+| --- | --- | --- | --- |
+| Boot | WIP | Mainline from slot B. USB SSH and both cluster watchdogs. No framebuffer console yet: the cover stays on the bootloader splash. Slot B is not marked successful. Slot A stays GrapheneOS | [BRINGUP-M1](../device/felix/BRINGUP-M1.md) |
+| Storage | no | UFS left disabled until this phone's guard has been checked | [BRINGUP-M1](../device/felix/BRINGUP-M1.md) |
+| Display | no | Neither panel is in the board file. The cover can keep the bootloader logo | [BRINGUP-M1](../device/felix/BRINGUP-M1.md) |
+| USB networking | works | CDC NCM gadget plus an ACM console. SSH at `root@172.16.42.1` | [BRINGUP-M1](../device/felix/BRINGUP-M1.md) |
+
 ## Wanted
 
 Devices we'd like to support, with the closest starting point. Open an issue to say you're working on one, so efforts don't overlap.
@@ -56,7 +68,6 @@ Devices we'd like to support, with the closest starting point. Open an issue to 
 | --- | --- | --- | --- |
 | Pixel 7 | panther | gs201 | cheetah's SoC support; needs its own board DTS (panel, touch, battery) |
 | Pixel 7a | lynx | gs201 | as panther |
-| Pixel Fold | felix | gs201 | as panther, with two panels |
 | Pixel Tablet | tangorpro | gs201 | as panther; no modem |
 | Pixel 6 | oriole | gs101 | **WIP, community port: [#2](https://github.com/derekross/omarchy-mobile/issues/2)**; our preferred second device. Upstream mainline `gs101-oriole.dts` |
 | Pixel 6 Pro | raven | gs101 | upstream mainline `gs101-raven.dts`; shares oriole's port ([#2](https://github.com/derekross/omarchy-mobile/issues/2)) |

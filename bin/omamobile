@@ -215,26 +215,33 @@ cmd_initramfs() {
     say "No Omarchy Plymouth logo or ImageMagick here: building without the early splash"
   fi
 
-  # devmem: 32-bit register access for bring-up, built against Alpine's musl
+  # devmem, reboot-to, and bootctl are built against Alpine's musl with the
+  # Android clang. A device with no package sources yet (first light) skips
+  # them. A device that has the sources still requires clang.
   local sysroot="$WORK/downloads/alpine/sysroot" builtins
-  if [[ ! -f "$sysroot/usr/lib/crt1.o" ]]; then
-    mkdir -p "$sysroot"
-    tar -xzf "$dl/$tarball" -C "$sysroot"
-    for apk in $(python3 -I "$ROOT/tools/alpine-fetch.py" "$ver" "$dl/apks" musl-dev); do
-      tar -xzf "$apk" -C "$sysroot" 2>/dev/null || true
-    done
+  if [[ -f $ROOT/packages/$DEV_PACKAGE/src/reboot-to.c ]]; then
+    [[ -n ${CLANG_DIR:-} && -d $CLANG_DIR ]] || die "no clang found; run 'lineage-ref sync' first or set CLANG_DIR"
+    if [[ ! -f "$sysroot/usr/lib/crt1.o" ]]; then
+      mkdir -p "$sysroot"
+      tar -xzf "$dl/$tarball" -C "$sysroot"
+      for apk in $(python3 -I "$ROOT/tools/alpine-fetch.py" "$ver" "$dl/apks" musl-dev); do
+        tar -xzf "$apk" -C "$sysroot" 2>/dev/null || true
+      done
+    fi
+    builtins=$(find "$CLANG_DIR/lib/clang" -name 'libclang_rt.builtins-aarch64-android.a' | head -1)
+    "$CLANG_DIR/bin/clang" --target=aarch64-linux-musl --sysroot="$sysroot" -fuse-ld=lld -static -nostdlib -O2 \
+      -o "$stage/usr/local/bin/devmem" "$sysroot/usr/lib/crt1.o" "$sysroot/usr/lib/crti.o" \
+      "$ROOT/tools/devmem.c" -L"$sysroot/usr/lib" -lc "$builtins" "$sysroot/usr/lib/crtn.o"
+    "$CLANG_DIR/bin/clang" --target=aarch64-linux-musl --sysroot="$sysroot" -fuse-ld=lld -static -nostdlib -O2 \
+      -o "$stage/usr/local/bin/reboot-to" "$sysroot/usr/lib/crt1.o" "$sysroot/usr/lib/crti.o" \
+      "$ROOT/packages/$DEV_PACKAGE/src/reboot-to.c" -L"$sysroot/usr/lib" -lc "$builtins" "$sysroot/usr/lib/crtn.o"
+    # A/B slot metadata in devinfo (Apache-2.0 port of Google's boot HAL). Not called by init yet.
+    "$CLANG_DIR/bin/clang" --target=aarch64-linux-musl --sysroot="$sysroot" -fuse-ld=lld -static -nostdlib -O2 \
+      -o "$stage/usr/local/bin/omamobile-bootctl" "$sysroot/usr/lib/crt1.o" "$sysroot/usr/lib/crti.o" \
+      "$ROOT/packages/$DEV_PACKAGE/src/omamobile-bootctl.c" -L"$sysroot/usr/lib" -lc "$builtins" "$sysroot/usr/lib/crtn.o"
+  else
+    say "No $DEV_PACKAGE host tools; initramfs has no devmem, reboot-to, or bootctl"
   fi
-  builtins=$(find "$CLANG_DIR/lib/clang" -name 'libclang_rt.builtins-aarch64-android.a' | head -1)
-  "$CLANG_DIR/bin/clang" --target=aarch64-linux-musl --sysroot="$sysroot" -fuse-ld=lld -static -nostdlib -O2 \
-    -o "$stage/usr/local/bin/devmem" "$sysroot/usr/lib/crt1.o" "$sysroot/usr/lib/crti.o" \
-    "$ROOT/tools/devmem.c" -L"$sysroot/usr/lib" -lc "$builtins" "$sysroot/usr/lib/crtn.o"
-  "$CLANG_DIR/bin/clang" --target=aarch64-linux-musl --sysroot="$sysroot" -fuse-ld=lld -static -nostdlib -O2 \
-    -o "$stage/usr/local/bin/reboot-to" "$sysroot/usr/lib/crt1.o" "$sysroot/usr/lib/crti.o" \
-    "$ROOT/packages/$DEV_PACKAGE/src/reboot-to.c" -L"$sysroot/usr/lib" -lc "$builtins" "$sysroot/usr/lib/crtn.o"
-  # A/B slot metadata in devinfo (Apache-2.0 port of Google's boot HAL). Not called by init yet.
-  "$CLANG_DIR/bin/clang" --target=aarch64-linux-musl --sysroot="$sysroot" -fuse-ld=lld -static -nostdlib -O2 \
-    -o "$stage/usr/local/bin/omamobile-bootctl" "$sysroot/usr/lib/crt1.o" "$sysroot/usr/lib/crti.o" \
-    "$ROOT/packages/$DEV_PACKAGE/src/omamobile-bootctl.c" -L"$sysroot/usr/lib" -lc "$builtins" "$sysroot/usr/lib/crtn.o"
   mkdir -p "$stage/root/.ssh"
   cat "$HOME"/.ssh/*.pub > "$stage/root/.ssh/authorized_keys"
   chmod 700 "$stage/root/.ssh" && chmod 600 "$stage/root/.ssh/authorized_keys"
