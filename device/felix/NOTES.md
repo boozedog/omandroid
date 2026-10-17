@@ -8,8 +8,9 @@ Findings from real hardware, newest first. [BRINGUP-M1.md](BRINGUP-M1.md) is the
 - **Slot B boots folded.** USB networking and SSH at `root@172.16.42.1`. Both cluster watchdogs are stopped. Slot B is not marked successful. Slot A stays GrapheneOS.
 - **The cover console is the cover controller only.** ABL leaves DECON1 `TRIG_CON` (`0x1c241030`) at `0x3070`, which masks the hardware trigger, so the cover keeps the bootloader logo. Writing `0x3061` clears `HW_TRIG_MASK_DECON` and sets `HW_TRIG_EN`. That pair is `SIMPLEFB_TRIG_CON` in `device.conf`. The shared init writes it only when the board's first compatible string is this descriptor's `COMPATIBLE`, and the cover shows the Linux console. Kernel 7.3.0-rc6.
 - **DECON0 `TRIG_CON` (`0x1c240030`) is the inner panel on this phone.** That is the address the Pixel 7 Pro init writes. It was not written. The inner frame count stayed frozen, and the inner panel kept the bootloader logo, including while folded. Do not reset it or program its DSI.
-- **The board file is local.** It enables the USB controller and the cover framebuffer the bootloader is already scanning, and it leaves both panel nodes, both touch controllers, the GPU, and UFS disabled. It will be proposed separately against `linux-omarchy-mobile` branch `omamobile`.
-- **UFS stays disabled** until this phone's read-only guard has been checked and there is a read-only backup of `efs`, `efs_backup`, `modem_userdata`, `persist`, and `modem_a`/`modem_b`.
+- **The first-light board file** enables the USB controller and the cover framebuffer the bootloader is already scanning, and it leaves both panel nodes, both touch controllers, the GPU, and UFS disabled. That is kernel pull request #1.
+- **The read-only guard was checked on 2026-10-16**, and `efs`, `efs_backup`, `modem_userdata`, `persist`, `modem_a`, `modem_b`, and `devinfo` were copied off the phone. A follow-up board file enables UFS with the same fixed always-on VCC regulator as the Pixel 7 Pro, and it does not set the initramfs-hold argument, so an Omarchy root on `userdata` can take over. That change is not in kernel pull request #1.
+- **`omamobile-device-felix`** continues the storage guard after the hand-over and keeps the USB link. It does not mark a slot successful and it does not start the radio, the charger, or a camera.
 
 ## 2026-10-13: stock facts
 
