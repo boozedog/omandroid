@@ -1,0 +1,14 @@
+// SPDX-License-Identifier: MIT
+/*
+ * Bring-up only. Turn on the gs201 Mali GPU so Panthor can probe.
+ * The ACPM GPU clock stays read-only (gs201_gpu_max_khz=0) for this
+ * gate. This does not enable either display controller.
+ * Applied with fdtoverlay. Paths, not labels, so the base DTB needs
+ * no __symbols__.
+ */
+/dts-v1/;
+/plugin/;
+
+&{/soc@0/gpu@28000000} {
+	status = "okay";
+};
