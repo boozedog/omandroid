@@ -1,7 +1,8 @@
 # SPDX-License-Identifier: MIT
 # Shared by tools/build-packages and tools/build-rootfs (sourced, not run):
 # an Arch Linux ARM aarch64 container on this x86 laptop, through Docker and
-# the laptop's qemu-aarch64 binfmt handler (qemu-user-static-binfmt).
+# the laptop's aarch64 binfmt handler. Debian and Arch register it as
+# qemu-aarch64 (qemu-user-static-binfmt). NixOS registers it as aarch64-linux.
 #
 # The container starts from Arch Linux ARM's official root tarball, checked
 # against its MD5 file and its detached signature from the Arch Linux ARM
@@ -35,8 +36,9 @@ alarm_fetch() {
   local gnupg status
   mkdir -p "$ALARM_CACHE/pkg" "$ALARM_CACHE/src"
   command -v docker >/dev/null || alarm_die "docker is needed"
-  [[ -e /proc/sys/fs/binfmt_misc/qemu-aarch64 ]] ||
-    alarm_die "no qemu-aarch64 binfmt handler: install qemu-user-static-binfmt"
+  if [[ ! -e /proc/sys/fs/binfmt_misc/qemu-aarch64 && ! -e /proc/sys/fs/binfmt_misc/aarch64-linux ]]; then
+    alarm_die "no aarch64 binfmt handler: install qemu-user-static-binfmt, or enable boot.binfmt.emulatedSystems"
+  fi
   if [[ ! -f $ALARM_TARBALL || ${ALARM_REFRESH:-} == 1 ]]; then
     alarm_say "Downloading the Arch Linux ARM aarch64 root tarball"
     curl -fsSL -o "$ALARM_TARBALL.part" "$ALARM_URL"
