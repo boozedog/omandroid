@@ -1,12 +1,14 @@
 # omamobile-device-felix
 
-Omarchy Mobile's first userspace package for the Google Pixel Fold (codename felix, Tensor G2 / gs201). It is the storage guard and the USB link, and nothing that drives the radio, the charger, or a camera. It does not mark a boot slot successful.
+Omarchy Mobile's first userspace package for the Google Pixel Fold (codename felix, Tensor G2 / gs201). It hides the Android partitions from desktop tools, holds the USB address, and gives pacman the same `[omamobile]` repository as the Pixel 7 Pro. It does not drive the radio, the charger, or a camera, and it does not mark a boot slot successful.
 
 | Path | Installs to | What it does |
 | --- | --- | --- |
-| `vendor/udev/rules.d/10-omamobile-storage.rules` | `/usr/lib/udev/rules.d` | Continues the initramfs storage guard. The whole-disk node stays inaccessible, and desktop tools ignore every Android partition except `userdata`. Same rule as the Pixel 7 Pro, because the partition names match |
-| `vendor/systemd/network/20-usb-gadget.network` | `/usr/lib/systemd/network` | Keeps the USB link at 172.16.42.1 after the initramfs hands over |
+| `vendor/udev/rules.d/10-omamobile-storage.rules` | `/usr/lib/udev/rules.d` | Hides `sda` and every Android partition except `userdata` from desktop tools. Same rule as the Pixel 7 Pro. The initramfs stops its guard loop before `switch_root`; the kernel's read-only flags are what remain |
+| `vendor/systemd/network/20-usb-gadget.network` | `/usr/lib/systemd/network` | Sets usb0 to 172.16.42.1/24 after handover. A replug may need a reboot: this package does not close the USB2 switch again |
 | `vendor/NetworkManager/conf.d/10-omamobile-usb.conf` | `/usr/lib/NetworkManager/conf.d` | Keeps NetworkManager off that link |
+| `etc/omamobile-mirrorlist` | `/etc/pacman.d/omamobile-mirrorlist` | Where pacman finds the `[omamobile]` repository. Same file as the Pixel 7 Pro package |
+| `omamobile-device-felix.install` | pacman hook | Adds `[omamobile]` to `pacman.conf` before `[omarchy]`, once. Same script as the Pixel 7 Pro package |
 | `src/reboot-to.c` | `/usr/bin/reboot-to` | Reboot with a reason the bootloader understands. Same bytes as the Pixel 7 Pro package; the test checks |
 | `device.conf` | `/usr/share/omamobile/device.conf` | The descriptor, the same bytes as `device/felix/device.conf` |
 

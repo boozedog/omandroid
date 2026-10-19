@@ -20,7 +20,24 @@ if [[ -f ../omamobile-device-cheetah/src/reboot-to.c ]]; then
   cmp -s src/reboot-to.c ../omamobile-device-cheetah/src/reboot-to.c \
     || fail "reboot-to.c drifted from the cheetah package"
   pass "reboot-to.c matches the cheetah source"
+  cmp -s vendor/udev/rules.d/10-omamobile-storage.rules \
+    ../omamobile-device-cheetah/vendor/udev/rules.d/10-omamobile-storage.rules \
+    || fail "the storage rule drifted from the cheetah package"
+  pass "the storage rule matches the cheetah package"
+  cmp -s etc/omamobile-mirrorlist ../omamobile-device-cheetah/etc/omamobile-mirrorlist \
+    || fail "the mirrorlist drifted from the cheetah package"
+  pass "the mirrorlist matches the cheetah package"
+  cmp -s omamobile-device-felix.install \
+    ../omamobile-device-cheetah/omamobile-device-cheetah.install \
+    || fail "the pacman install script drifted from the cheetah package"
+  pass "the pacman install script matches the cheetah package"
 fi
+grep -q 'omamobile-keyring' PKGBUILD || fail "pacman needs omamobile-keyring"
+grep -q '^install=omamobile-device-felix.install$' PKGBUILD \
+  || fail "the pacman install script is not named"
+[[ -f etc/omamobile-mirrorlist && -f omamobile-device-felix.install ]] \
+  || fail "the pacman mirrorlist or install script is missing"
+pass "pacman gets the keyring, the mirrorlist, and the install script"
 if [[ -f ../../device/felix/device.conf ]]; then
   cmp -s device.conf ../../device/felix/device.conf \
     || fail "device.conf drifted from the descriptor"
@@ -38,7 +55,8 @@ for f in usr/bin/reboot-to \
          usr/lib/NetworkManager/conf.d/10-omamobile-usb.conf \
          usr/share/omamobile/device.conf \
          usr/share/omamobile/device-felix/version \
-         usr/share/licenses/omamobile-device-felix/LICENSE; do
+         usr/share/licenses/omamobile-device-felix/LICENSE \
+         etc/pacman.d/omamobile-mirrorlist; do
   [[ -f $tmp/root/$f ]] || fail "install stages $f"
 done
 grep -q 'KERNEL=="sda", MODE="0000"' "$tmp/root/usr/lib/udev/rules.d/10-omamobile-storage.rules" \
@@ -55,4 +73,4 @@ for absent in usr/bin/omamobile-boot-success usr/bin/omamobile-bootctl \
               usr/bin/omamobile-camera-start; do
   [[ ! -e $tmp/root/$absent ]] || fail "install includes $absent"
 done
-pass "install stages the guard and the USB link, and nothing that marks a slot or starts hardware"
+pass "install stages the udev rule, the USB link, and the mirrorlist, and nothing that marks a slot or starts hardware"

@@ -7,9 +7,11 @@ pkgdesc="Omarchy Mobile support for the Google Pixel Fold (felix): storage guard
 arch=(aarch64)
 url="https://github.com/derekross/omarchy-mobile"
 license=(MIT)
-depends=(bash systemd)
+depends=(bash systemd omamobile-keyring)
 provides=(omamobile-device)
 conflicts=(omamobile-device)
+backup=(etc/pacman.d/omamobile-mirrorlist)
+install=omamobile-device-felix.install
 makedepends=(gcc)
 
 build() {
