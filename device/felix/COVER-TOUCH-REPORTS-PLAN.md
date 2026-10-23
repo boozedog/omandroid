@@ -21,10 +21,12 @@ In order:
 - `L/` is linux-omarchy-mobile on `omamobile`, plus the open #32 series.
 - `N/` is `device/felix/NOTES.md` and `device/felix/COVER-TOUCH-PLAN.md` (the chip-id gate, omarchy-mobile#34).
 - `G/` is Google's felix touch driver, `kernel/devices/google/felix` path `touch/ftm5/`. Public history: <https://android.googlesource.com/kernel/devices/google/felix/+log/refs/tags/android-14.0.0_r0.102/touch/ftm5/fts.c>.
+- `F/` is factory image CP3A.261005.002.A1. Its `vendor.img` is an ext4 image whose root is the vendor directory. Factory-image terms: <https://developers.google.com/android/images>.
 
 ## Facts
 
 - [V] Cover touch is `st,fts` on `spi_6`, chip select `gpp12-3`, reset `gpp23-3`, attention `gpa6-7`, supplies S2MPG12 LDO25M and LDO26M. Stock firmware name `ftm5_fw_f10_ext.ftb`. `N/` 2026-10-20.
+- [V] `F/` `vendor.img` contains `firmware/ftm5_fw_f10_ext.ftb`, 153640 bytes, mode `0644`, SELinux type `vendor_fw_file`. The header signature is `0xAA55AA55` and the chip id in the header is `36 40`. No license file sits beside it. The same directory has `ftm5_fw_p7.ftb`, `ftm5_fw_p7_ext.ftb`, and `stm_fts_production_limits_f10_ext.csv`. `firmware/ftm5_fw_f10.ftb` is not there. Google's factory-image terms allow the files on a personal Pixel and do not allow redistribution, so this blob stays out of the repository.
 - [V] A hand-loaded `salixp` module on `7.3.0-rc6-omamobile-push1-gdd05dd347ad0` logged `salixp spi0.0: chip id 36 40`, held each of those two rails with one user, and dropped both on unbind. `N/` and #32.
 - [V] Attention is level-low. After reset is released it falls and stays low. #32 describes the line and does not request it. `L/` `salixp.c` says a level interrupt would storm before any firmware handshake.
 - [V] The controller answered with no AoC driver loaded. Touch offload stays out of this plan.
@@ -41,7 +43,7 @@ Leave #32 and #34 as they are. Reports are a new series after those merge: bindi
 
 Do not request `gpa6-7` in the same change that only reads the chip id. Do not port `ftm5.c`. Do not add the inner panel, its reset, or S2MPG13.
 
-The firmware file named in the factory node is not in this repository. Do not vendor a blob in the plan commit. The license and the exact file on the phone are open questions below.
+The firmware file named in the factory node is `F/` `firmware/ftm5_fw_f10_ext.ftb`. Do not vendor that blob. The terms above do not allow shipping it.
 
 ## What was built
 
@@ -79,11 +81,10 @@ A new kernel branch, one subject, node left disabled. The first boot of that bra
 
 ## Results
 
-2026-10-23. No report boot. Chip id `36 40` remains the last cover-touch result, on `dd05dd347`. Step 0 citations are from `G/` tag `android-14.0.0_r0.102` and were not run on this phone.
+2026-10-23. No report boot. Chip id `36 40` remains the last cover-touch result, on `dd05dd347`. Step 0 citations are from `G/` tag `android-14.0.0_r0.102` and were not run on this phone. `F/` identifies `firmware/ftm5_fw_f10_ext.ftb` and the file was not copied into this repository.
 
 ## Open questions
 
 - Does the stock bootloader leave firmware running, or only leave the chip id readable? `G/` flashes when `fts_crc_check` fails and skips when `flash_burn` sees a match. The id read did not run either check.
-- Which bytes does `ftm5_fw_f10_ext.ftb` name, and can they be shipped?
 - What does a touch report look like once the interrupt is allowed to fire?
 - The inner panel stays on its own plan.
