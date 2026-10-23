@@ -9,11 +9,11 @@ The earlier id reads are in [NOTES.md](NOTES.md). One was an unpublished tree wi
 
 ## Gate
 
-Risk: the overlay binds the S2MPG12 regulator driver, and the reader then enables LDO25M and LDO26M. Stop if any other rail changes state, if the UFS error handler runs, if USB drops, or if the chip id is not `36 40`. If the phone does not come back on USB, stop. Do not boot slot A: stock rewrites the calibration partitions. Do not mark slot B successful.
+Risk: the overlay binds the S2MPG12 regulator driver, and the reader then enables LDO25M and LDO26M. Stop if any other rail changes state, if the UFS error handler runs, if USB drops, or if the chip id is not `36 40`. If the phone does not come back on USB, stop. Do not boot slot A: stock rewrites the calibration partitions. If ABL boots slot A anyway, stop this gate and take a fresh backup before going on. Do not mark slot B successful.
 
 Rollback for the boot: slot B images built without `cover-touch`. The blacklist can stay.
 
-Do not use `bin/omamobile flash` or `bin/omamobile push` for this boot. `push` treats a missed SSH answer as a fall back to slot A. Pack the images, then write only `boot_b`, `init_boot_b`, `vendor_boot_b`, `vendor_kernel_boot_b`, and `dtbo_b`, set slot B active, and reboot. Leave `userdata` alone.
+Write slot B with `DEVICE=felix bin/omamobile flash` from fastboot, or `DEVICE=felix bin/omamobile push` from a phone that is already up. Both write only the allowlisted `_b` images, and `push` checks each image's sha256. Leave `userdata` alone. The initramfs panics if no USB host configures the gadget within 45 s, and ABL can then boot slot A once slot B is out of retries. That happens however the images were written. `push` only prints it when SSH never comes back.
 
 ### 0. Read-only, before the overlay image
 
@@ -43,20 +43,29 @@ Build the kernel so `salixp` is a module (`CONFIG_TOUCHSCREEN_SALIXP=m` in the f
 
 ### 2. Boot slot B
 
-Write the five slot B boot images, set slot B active, and reboot. Do not mark the slot successful.
+`DEVICE=felix bin/omamobile flash` from fastboot, or `push` when the phone is already up. Do not mark the slot successful.
 
-The reader defers until the S2MPG12 regulators exist. `sec_acpm` probes only after the mailbox and the ACPM protocol are loaded, or it skips its channels. On the phone, after it is up and debugfs is mounted:
+The reader defers until the S2MPG12 regulators exist. `sec_acpm` probes only after the mailbox and the ACPM protocol are loaded, or it skips its channels. On the laptop, start a log before the loads, so the last lines survive if the phone drops:
+
+```sh
+mkdir -p logs
+tools/phone-ssh 'dmesg -w' > logs/felix-cover-touch-$(date +%s).log &
+```
+
+On the phone, after it is up and debugfs is mounted:
 
 ```sh
 modprobe exynos_mailbox
 modprobe acpm_protocol
 modprobe sec_acpm
+cp /sys/kernel/debug/regulator/regulator_summary /tmp/regulator-before.txt
 modprobe salixp
+cp /sys/kernel/debug/regulator/regulator_summary /tmp/regulator-after.txt
+diff -u /tmp/regulator-before.txt /tmp/regulator-after.txt
 dmesg | grep salixp
-grep -A2 -E 'ldo25m|ldo26m' /sys/kernel/debug/regulator/regulator_summary
 ```
 
-**Expect / pass:** dmesg has `salixp spi0.0: chip id 36 40`. In `regulator_summary`, `ldo25m` and `ldo26m` are enabled and the touch device is their consumer. No other rail changed. `dmesg` has no `ufshcd_err_handler` line from this boot.
+**Expect / pass:** dmesg has `salixp spi0.0: chip id 36 40`. The diff shows `vdd-outer-ts` (LDO25M) and `avdd-outer-ts` (LDO26M) enabled, with the touch device as their consumer. No other rail changed. `dmesg` has no `ufshcd_err_handler` line from this boot. The summary prints those regulator names.
 
 **Stop:** any other chip id, a rail other than those two changing, a UFS error-handler run, or USB dropping. Do not request the attention interrupt. Do not load firmware.
 
@@ -64,12 +73,21 @@ grep -A2 -E 'ldo25m|ldo26m' /sys/kernel/debug/regulator/regulator_summary
 
 **Risk:** the main PMIC regulator driver binds, and the reader enables LDO25M (1.8 V) and LDO26M (3.3 V).
 
-### 3. Smoke, then an optional unbind
+### 3. Smoke, then unbind
+
+Unbind is required. It is the remove path that asserts reset before the rails drop.
+
+On the laptop:
 
 ```sh
 tools/phone-smoke
+```
+
+On the phone:
+
+```sh
 echo spi0.0 > /sys/bus/spi/drivers/salixp/unbind
-grep -A2 -E 'ldo25m|ldo26m' /sys/kernel/debug/regulator/regulator_summary
+grep -A2 -E 'vdd-outer-ts|avdd-outer-ts' /sys/kernel/debug/regulator/regulator_summary
 ```
 
 **Expect / pass:** `phone-smoke` reports no touch input. This reader does not create one. After unbind, both rails are disabled and have no users.
