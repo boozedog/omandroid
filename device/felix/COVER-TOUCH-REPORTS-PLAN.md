@@ -64,7 +64,7 @@ Requesting attention while it sits low storms the interrupt line. A guessed flas
 
 ## Runbook
 
-This revision has no phone step. Do not pack an image from this file. Do not load `salixp` again for reports. Do not mark slot B successful.
+Step 2 is the CRC status read. Do not mark slot B successful. Do not request attention. Do not write the flash.
 
 ### 0. Read the firmware hand-off
 
@@ -80,7 +80,19 @@ Passed, 2026-10-23, against `G/` tag `android-14.0.0_r0.102`. The decision is `f
 
 ### 1. Later, and not this commit
 
-A new kernel branch, one subject, node left disabled. The first boot of that branch is a separate runbook written after step 0. Its stop conditions include: attention requested before the hand-off, any rail other than LDO25M and LDO26M changing, a UFS error handler, USB dropping, or the phone failing to come back. If ABL falls back to slot A, stop and take a fresh backup.
+A new kernel branch, one subject, node left disabled. The first boot of that branch is step 2. Its stop conditions include: attention requested before the hand-off, any rail other than LDO25M and LDO26M changing, a UFS error handler, USB dropping, or the phone failing to come back. If ABL falls back to slot A, stop and take a fresh backup.
+
+### 2. Read the CRC status register
+
+One slot B boot of `523924301`. The cover node stays disabled in the kernel DTB. The image overlay is `device/felix/overlays/cover-touch.dtso`. `salixp` stays blacklisted. Load it by hand after the mailbox, the ACPM protocol, and `sec-acpm`.
+
+**Expect / pass:** dmesg has `salixp spi0.0: chip id 36 40` and `salixp spi0.0: crc status NN raw NN`. `crc status 00` means the low two bits were clear. Any other status is the CRC-error value. The driver does not reset the controller after this read and does not write the flash. Both cover rails show one user. Unbind leaves both with no users.
+
+**Stop:** attention is requested, any rail other than LDO25M and LDO26M changes, a UFS error handler, USB drops, or the phone does not come back. If ABL falls back to slot A, stop and take a fresh backup.
+
+**Rollback:** unbind `salixp`. Do not mark slot B successful.
+
+**Risk:** the same PMIC bind as the chip-id gate. This step does not call `fts_system_reset`.
 
 ## Results
 
