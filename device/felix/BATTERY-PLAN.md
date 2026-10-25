@@ -556,10 +556,16 @@ DesignCap `0x07cf`, temperature 32.6 °C, voltage 4.319 V,
 `charge_full_design` 3330334, and RepSOC 90%. The small cell was
 unchanged: DesignCap `0x02e9`, TaskPeriod `0x2d00`, RepSOC still 10%.
 
+At 1422 s the small cell's voltage estimate, `VFSOC` `0x0add`, was also
+about 11%. RepSOC was `0x0ab1`. The cell voltage was 4.317 V at 37.5 °C.
+DesignCap was still `0x02e9`. This is not a coulomb counter catching up
+to a full voltage estimate. Stop. No further gauge write.
+
 ## 9. Open questions
 
 - The pack ID on this phone is `0x02`, the COS 2 kΩ table. B1.5 loaded
-  it. The state of charge just after that load is not settled.
+  it. The reported 10% matches the voltage estimate, so it is not a
+  coulomb counter catching up. No further gauge write for it.
 - The byte at HSI2C13 `0x66` register 0 was `0x3b` on B1.1. The overlay
   calls that node `maxim,max77729pmic`; the vendor modules are
   `max77779_pmic_*`.
