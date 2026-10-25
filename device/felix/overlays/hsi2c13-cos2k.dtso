@@ -1,0 +1,63 @@
+// SPDX-License-Identifier: MIT
+/*
+ * B1.5 only. The small-cell gauge and the COS 2 kOhm table, the pack
+ * this phone's EEPROM named. No interrupt. Not part of a default image.
+ */
+/dts-v1/;
+/plugin/;
+
+&usi13 {
+	samsung,mode = <3>; /* USI_MODE_I2C */
+	status = "okay";
+};
+
+&hsi2c_13 {
+	clock-frequency = <370000>;
+	status = "okay";
+
+	fuel-gauge@36 {
+		compatible = "maxim,max77759-fg";
+		reg = <0x36>;
+		shunt-resistor-micro-ohms = <5000>;
+		status = "okay";
+
+		/* Factory maxim,cos-pack-b-2k, batt-id 2. Not the ATL table. */
+		maxim,fg-model = /bits/ 16 <
+			0xa4f0 0xb040 0xb7a0 0xb940 0xbaf0 0xbda0 0xbea0 0xc070
+			0xc490 0xc840 0xcad0 0xce20 0xd130 0xd550 0xd860 0xdea0
+			0x0020 0x0310 0x0141 0x00a1 0x00f8 0x01a1 0x00f0 0x00be
+			0x005d 0x009b 0x005f 0x0081 0x005a 0x008e 0x006a 0x006a
+			0x0020 0x0020 0x0020 0x0020 0x0020 0x0020 0x0020 0x0020
+			0x0020 0x0020 0x0020 0x0020 0x0020 0x0020 0x0020 0x0020
+		>;
+		maxim,fg-params = /bits/ 16 <
+			0xf060	/* IAvgEmpty */
+			0x0838	/* RelaxCfg */
+			0x260e	/* LearnCfg */
+			0x4217	/* Config */
+			0x0090	/* Config2 */
+			0x5a05	/* FullSOCThr */
+			0x02e9	/* FullCapRep */
+			0x02e9	/* DesignCap */
+			0x3200	/* dPAcc */
+			0x00ba	/* dQAcc */
+			0x02e9	/* FullCapNom */
+			0xa55a	/* VEmpty */
+			0x1700	/* QRTable00 */
+			0x0980	/* QRTable10 */
+			0x0280	/* QRTable20 */
+			0x0200	/* QRTable30 */
+			0x04e0	/* RComp0 */
+			0x1202	/* TempCo */
+			0x01d3	/* IChgTerm */
+			0xed51	/* TGain */
+			0x1eba	/* TOff */
+			0x0014	/* Curve */
+			0x3870	/* MiscCfg */
+			0x1900	/* AtRate */
+			0x2241	/* ConvgCfg */
+			0x0624	/* FilterCfg */
+			0x2d00	/* TaskPeriod */
+		>;
+	};
+};

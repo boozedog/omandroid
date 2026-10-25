@@ -1,0 +1,16 @@
+// SPDX-License-Identifier: MIT
+/*
+ * B1.4 only. The large-cell gauge, with no interrupt.
+ * HSI2C15 itself is enabled by hsi2c15-ro. Not part of a default image.
+ */
+/dts-v1/;
+/plugin/;
+
+&hsi2c_15 {
+	fuel-gauge@36 {
+		compatible = "maxim,max17201";
+		reg = <0x36>, <0x0b>;
+		reg-names = "m5", "nvmem";
+		status = "okay";
+	};
+};

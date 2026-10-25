@@ -1,0 +1,17 @@
+// SPDX-License-Identifier: MIT
+/*
+ * B1.1 only. Enable HSI2C13 in I2C mode at stock's 370 kHz.
+ * No child is enabled. Not part of a default image.
+ */
+/dts-v1/;
+/plugin/;
+
+&usi13 {
+	samsung,mode = <3>; /* USI_MODE_I2C */
+	status = "okay";
+};
+
+&hsi2c_13 {
+	clock-frequency = <370000>;
+	status = "okay";
+};

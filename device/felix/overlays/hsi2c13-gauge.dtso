@@ -1,0 +1,24 @@
+// SPDX-License-Identifier: MIT
+/*
+ * B1.2 only. HSI2C13 at stock's 370 kHz, and the small-cell gauge
+ * with no interrupt and no model. Not part of a default image.
+ */
+/dts-v1/;
+/plugin/;
+
+&usi13 {
+	samsung,mode = <3>; /* USI_MODE_I2C */
+	status = "okay";
+};
+
+&hsi2c_13 {
+	clock-frequency = <370000>;
+	status = "okay";
+
+	fuel-gauge@36 {
+		compatible = "maxim,max77759-fg";
+		reg = <0x36>;
+		shunt-resistor-micro-ohms = <5000>;
+		status = "okay";
+	};
+};

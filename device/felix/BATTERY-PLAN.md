@@ -1,13 +1,11 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Battery plan (felix / gs201)
 
-Status (2026-10-25): stage 6 is not started on the phone. The kernel
-branch `omamobile-gs201-felix-battery` is cut from `omamobile` and
-describes both gauges disabled. The Fold DTB builds with both nodes
-and both buses disabled. The 7 Pro sources are unchanged. `dt-validate`
-has not been run: the tool is not installed here, and the build
-container did not start. Nothing is committed. No boot.
-Charging, Type-C, and the charger policy stay a later stage
+Status (2026-10-25): B1.1 through B1.5 have passed. On the B1.5 boot
+both gauges reported together: the large cell 4.319 V, 32.6 °C, and
+3330 mAh at 90%, and the small cell 4.319 V, 37.3 °C, and 1490 mAh.
+The small cell's state of charge was still 10%. Charging, Type-C, and
+the charger policy stay a later stage
 ([CONTRIBUTING.md](../../CONTRIBUTING.md) §5.4, stage 12).
 
 Goal: both cells report a capacity on the pack's design scale and a
@@ -184,15 +182,62 @@ The read-only driver uses the sense resistor it reads from the chip.
 6. Stage 12 owns the charger, the TCPC, and the PMIC. This stage does not
    describe those nodes.
 
-Kernel branch for the device tree, when it is cut: `omamobile-gs201-felix-battery`,
-worktree `wt-felix-battery`, output `out-felix-battery`.
+Kernel branch: `omamobile-gs201-felix-battery`, worktree
+`wt-felix-battery`, output `out-felix-battery`. Cut from `omamobile`.
+Not pushed.
 
 ## 5. What was built
 
-Local, not committed. `gs201-felix.dtb` and `gs201-cheetah.dtb` built
-from `omamobile-gs201-felix-battery`. The Fold DTB has both gauges
-`disabled`, and both USI nodes stay `disabled`. The diff against
-`omamobile` is only `gs201-felix.dts`. `dt-validate` was not run.
+Local, not pushed.
+
+| Commit | Where | What |
+| --- | --- | --- |
+| `4f5230a` | this repo, `felix-battery` | this plan |
+| `5a4895c` | this repo, `felix-battery` | binding names, the unread addresses, `CONFIG_BATTERY_MAX1720X=m` |
+| `0f1dedc18` | `omamobile-gs201-felix-battery` | both gauge nodes, disabled |
+
+`gs201-felix.dtb` and `gs201-cheetah.dtb` built. The Fold DTB has both
+gauges `disabled`, and both USI nodes stay `disabled`. The kernel diff
+against `omamobile` is only `gs201-felix.dts`.
+
+`dt-validate` (dtschema 2026.9) of both DTBs reports no message for
+`fuel-gauge@36`. Both boards report `soc_id`, the two cluster
+watchdogs, the PMU, and the PMU interrupt generator. The 7 Pro also
+reports `post-init-providers` on its simple-framebuffer. None of those
+are new to this change.
+
+## 5.1 Sequence
+
+This is the order. Section 7 is the gate for each boot. A boot waits for
+a yes. Nothing is pushed until asked.
+
+1. Finish B1.0. Run `dt-validate`. No phone.
+2. Do not flash `omamobile-gs201-felix-battery` as the phone's device
+   tree. That branch is the published tree plus the gauge nodes. A boot
+   image is the kernel the phone is already running, plus the gauge
+   commit where the step needs it, plus an overlay for that image only.
+   The committed `device.conf` does not gain a `DTB_OVERLAYS` line.
+3. B1.1, when asked. One slot B image. The overlay enables HSI2C13 at
+   370 kHz and enables no child. One session reads the small-cell
+   registers. No module. A failed read, POR, a changed inner picture, or
+   USB not coming back stops the stage.
+4. Record B1.1. DesignCap is what B1.5 uses.
+5. B1.2. Blacklist `max17042_battery` first. A new boot enables the
+   small-cell node, still with no interrupt and no model. The image's
+   device tree contains that node. Repeat the reads, then load the
+   module. One threshold write. Record voltage, temperature, and design
+   capacity.
+6. B1.3. A new boot enables HSI2C15 at 400 kHz and enables no child.
+   Read the large cell. Do not read `0x42`, `0x43`, `0x50`, or `0x61`.
+7. B1.4. Blacklist `max1720x_battery`. A new boot enables the large-cell
+   node with no interrupt. Load the module. The pass is the two design
+   capacities near 1460 mAh and 3267 mAh, and temperatures that agree.
+8. B1.5 only if B1.2 says the small cell's table is missing or wrong.
+   If the table is already the right one, this step is a record. A write
+   is its own boot, one table, and a separate yes. The fake table is not
+   loaded.
+9. The alert pins stay undescribed. The charger, the TCPC, and the PMIC
+   are stage 12.
 
 ## 6. Risks
 
@@ -375,14 +420,148 @@ reporting on its previous model.
 
 ## 8. Results
 
-None. No boot has run this plan.
+### B1.1, 2026-10-25
+
+Kernel `7.3.0-rc6-omamobile-push1-g523924301fb3`. HSI2C13 came up as
+`i2c-0`. HSI2C15 stayed absent. No module was loaded.
+
+| Register | Value |
+| --- | --- |
+| PMIC id, `0x66` `0x00` | `0x3b` |
+| STATUS | `0x2080`, bit 1 clear |
+| `SALRT_Th` | `0xff00` |
+| TEMP | `0x2629`, 38.2 °C |
+| VCELL | `0xd7ea`, 4.318 V |
+| DesignCap | `0x02e9` |
+| TaskPeriod | `0x2d00` |
+
+Pass. DesignCap is the 1 kΩ and 2 kΩ value, not the fake table and not
+the 0 kΩ table. Those two still are not told apart. The temperature is
+not the stuck 22.0 °C.
+
+### B1.2, 2026-10-25
+
+Same kernel. The overlay enabled the small-cell node with no interrupt
+and no model. The shunt property was `00 00 13 88`. The driver was not
+bound. `modprobe max17042_battery` then succeeded. The supply is named
+`max170xx_battery`.
+
+| Reading | Value |
+| --- | --- |
+| STATUS, before and after | `0x2080`, bit 1 clear |
+| `SALRT_Th`, before and after | `0xff00` |
+| TEMP | `0x2605`, 38.0 °C |
+| VCELL | `0xd7e6`, 4.318 V |
+| `voltage_now` | 4.317 V |
+| `temp` | 38.0 °C |
+| `charge_full_design` | 1490 mAh |
+| DesignCap | `0x02e9` |
+| TaskPeriod | `0x2d00` |
+
+Pass. The capacity is the design scale, not the 4500 mAh scale. The
+temperature matches the register and is not stuck.
+
+### B1.3, 2026-10-25
+
+Same kernel. The inner picture was still the bootloader logo. HSI2C15
+came up as `i2c-1` with no child. No read of `0x42`, `0x43`, `0x50`, or
+`0x61`.
+
+| Register | Value |
+| --- | --- |
+| STATUS | `0x0000`, bit 1 clear |
+| `DEV_NAME` | `0x1101`, low nibble 1, a MAX17201 |
+| TEMP | `0x20ef`, 32.9 °C |
+| RepSOC | `0x5ade`, 90.9% |
+| DesignCap | `0x07cf` |
+
+The small cell, loaded again by hand, read 4.318 V, 37.7 °C, and 1490 mAh.
+That matches B1.2. The large cell is about 5 °C cooler, which is the two
+halves, not a stuck reading. DesignCap is the raw word. Its milliamp-hour
+value waits on `nRSense`, which B1.4 reads.
+
+### B1.4, 2026-10-25
+
+Same kernel. The large-cell node came up as `maxim,max17201` at `0x36`
+and `0x0b`, with no interrupt. The driver was not bound. `modprobe
+max1720x_battery` succeeded. No "RSense not calibrated" line. The supply
+is `max1720x`.
+
+| Reading | Value |
+| --- | --- |
+| `voltage_now` | 4.321 V |
+| `temp` | 32.6 °C |
+| `charge_full_design` | 3330 mAh |
+| `charge_full` | 3214 mAh |
+| capacity | 90% |
+
+3330 mAh is the B1.3 DesignCap word at 3.00 mΩ, not the 10 mΩ fallback.
+It is near the pack's 3267 mAh. The large cell itself passed.
+
+The small cell was then loaded again. It read 4.318 V, 22.0 °C, and
+3000 mAh. A later read of its registers, with the shunt still
+`00 00 13 88`, showed the gauge itself had reset:
+
+| Register | B1.2 | Now |
+| --- | --- | --- |
+| STATUS | `0x2080`, bit 1 clear | `0x0082`, bit 1 set |
+| TEMP | `0x2605`, 38.0 °C | `0x1600`, 22.0 °C |
+| VCELL | `0xd7e6`, 4.318 V | `0xd7d2`, 4.316 V |
+| DesignCap | `0x02e9` | `0x0bb8` |
+| TaskPeriod | `0x2d00` | `0x1680` |
+
+The voltage is still real. The temperature, DesignCap, and TaskPeriod are
+the gauge's default model. The driver has no `maxim,fg-model`, so it did
+not write that table. The power-on-reset bit is set. Stop. No table write.
+
+### B1.5, 2026-10-25
+
+Same kernel. The pack ID byte was `0x02`, so the image carried only the
+COS 2 kΩ table. Before the load, STATUS was `0x0082` and DesignCap was
+`0x0bb8`. The driver logged `battery model loaded (DesignCap 0x2e9,
+TaskPeriod 0x2d00)`.
+
+| Register | After the load |
+| --- | --- |
+| STATUS | `0x0000`, POR clear |
+| TEMP | `0x2506`, 37.0 °C |
+| VCELL | `0xd7dc`, 4.317 V |
+| DesignCap | `0x02e9` |
+| CONFIG | `0x4217` |
+| LearnCfg | `0x260e` |
+| FilterCfg | `0x0624` |
+| RelaxCfg | `0x0838` |
+| TaskPeriod | `0x2d00` |
+
+`charge_full_design` is 1490000. The state of charge read 10% in the same
+sample. The load writes remaining capacity to zero and waits for the gauge
+to refill it, so that percentage is not the settled reading.
+
+About 100 s later, at 329 s of uptime, the design values were unchanged
+and the voltage was 4.318 V at 37.0 °C. RepCap was `0x004f` (158 mAh) and
+RepSOC was `0x0aba` (10%). The gauge's own register agrees with the 10%.
+STATUS was `0x0080`, so POR stayed clear. The supply status had changed
+from Discharging to Charging. The charger node was not enabled.
+
+From 329 s through 550 s, RepCap stayed `0x004f` (158 mAh) and the
+reported percentage stayed 10%. RepSOC was `0x0aba` at 329 s and 379 s,
+`0x0aba` at 468 s, and `0x0ab7` at 550 s. Voltage stayed 4.316-4.318 V
+and temperature 37.0-37.1 °C. DesignCap stayed `0x02e9`. The supply
+status flipped between Charging and Discharging with Current `0x0008`,
+`0xffdd`, and `0x0005`. The charger node was not enabled.
+
+At 701 s the large-cell driver was loaded. It does not write a table.
+There was no "RSense not calibrated" line. `DEV_NAME` was `0x1101`,
+DesignCap `0x07cf`, temperature 32.6 °C, voltage 4.319 V,
+`charge_full_design` 3330334, and RepSOC 90%. The small cell was
+unchanged: DesignCap `0x02e9`, TaskPeriod `0x2d00`, RepSOC still 10%.
 
 ## 9. Open questions
 
-- The pack ID on this phone. DesignCap splits the fake table and the 0 kΩ
-  table from the other two, and leaves 1 kΩ and 2 kΩ together.
-- The byte at HSI2C13 `0x66` register 0. The overlay calls that node
-  `maxim,max77729pmic`; the vendor modules are `max77779_pmic_*`.
-- `DEV_NAME` on the MAX1720x, and whether `nRSense` reads 300.
-- Whether STATUS bit 1 is clear on both gauges. Stock has been running
-  them, so the bit should be clear while the gauges have stayed powered.
+- The pack ID on this phone is `0x02`, the COS 2 kΩ table. B1.5 loaded
+  it. The state of charge just after that load is not settled.
+- The byte at HSI2C13 `0x66` register 0 was `0x3b` on B1.1. The overlay
+  calls that node `maxim,max77729pmic`; the vendor modules are
+  `max77779_pmic_*`.
+- `DEV_NAME` is `0x1101`, a MAX17201. `nRSense` was 300 (3.00 mΩ): the
+  reported 3330 mAh is DesignCap `0x07cf` at that sense.
