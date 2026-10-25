@@ -1,7 +1,8 @@
 #!/bin/bash
 # SPDX-License-Identifier: MIT
-# Stage omamobile-device-felix into DESTDIR. Nothing is enabled that would
-# mark a slot successful or start the radio, the charger, or a camera.
+# Stage omamobile-device-felix into DESTDIR. The USB rescue is enabled by
+# a vendor wants link. Nothing is enabled that would mark a slot successful
+# or start the radio, the charger, or a camera.
 #   ./install DESTDIR [BUILDDIR]
 set -euo pipefail
 cd -- "$(dirname -- "${BASH_SOURCE[0]}")"
@@ -9,6 +10,12 @@ destination=${1:?Usage: ./install DESTDIR [BUILDDIR]}
 build=${2:-build}
 [[ $destination == /* && $destination != "/" ]] || { echo "Use an absolute staging directory" >&2; exit 1; }
 install -Dm755 "$build/reboot-to" "$destination/usr/bin/reboot-to"
+install -Dm755 bin/omamobile-usb-rescue "$destination/usr/bin/omamobile-usb-rescue"
+install -Dm644 vendor/systemd/system/omamobile-usb-rescue.service \
+  "$destination/usr/lib/systemd/system/omamobile-usb-rescue.service"
+install -d "$destination/usr/lib/systemd/system/multi-user.target.wants"
+ln -sfn ../omamobile-usb-rescue.service \
+  "$destination/usr/lib/systemd/system/multi-user.target.wants/omamobile-usb-rescue.service"
 install -Dm644 vendor/udev/rules.d/10-omamobile-storage.rules \
   "$destination/usr/lib/udev/rules.d/10-omamobile-storage.rules"
 install -Dm644 vendor/systemd/network/20-usb-gadget.network \

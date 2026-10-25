@@ -51,7 +51,7 @@ The stock capture's build is `google/felix/felix:17/CP3A.261005.002.A1/202610060
       omamobile: ufs-ro: /dev/sdd1 (devinfo) set read-only
 
   linux-omarchy-mobile#4 enables UFS. That boot did not pass the initramfs-hold argument.
-- **`omamobile-device-felix`** does not run a guard loop of its own. The initramfs stops its loop before `switch_root`. What carries over is the kernel's read-only flags, plus this package's udev rule, which hides `sda` and the Android partitions from desktop tools. The USB unit sets 172.16.42.1. A replug may need a reboot, because nothing here closes the USB2 switch the way `omamobile-usb-rescue` does on the Pixel 7 Pro. It does not mark a slot successful and it does not start the radio, the charger, or a camera.
+- **`omamobile-device-felix`** does not run a guard loop of its own. The initramfs stops its loop before `switch_root`. What carries over is the kernel's read-only flags, plus this package's udev rule, which hides `sda` and the Android partitions from desktop tools. The USB unit sets 172.16.42.1. `omamobile-usb-rescue` closes the USB2 switch while VBUS is valid, the same write as the Pixel 7 Pro. Until that package is installed, a replug may still need a reboot. It does not mark a slot successful and it does not start the radio, the charger, or a camera.
 
 ## 2026-10-13: stock facts
 

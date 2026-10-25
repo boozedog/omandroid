@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Pixel Fold USB-C: the data switch
 
-Status, 2026-10-25. Step 2 passed on the running `7.3.0-rc6-omamobile-push1-g523924301fb3` boot. One unplug opened `USBSW_CTRL` to `0x00`. One write of `0x09`, with VBUS still valid, closed it, and a fresh SSH login answered. No driver. No other register. Slot B was not marked successful.
+Status, 2026-10-25. Step 2 passed on the running `7.3.0-rc6-omamobile-push1-g523924301fb3` boot. One unplug opened `USBSW_CTRL` to `0x00`. One write of `0x09`, with VBUS still valid, closed it, and a fresh SSH login answered. The same write is now `omamobile-device-felix` 0.1.4's `omamobile-usb-rescue`. It is not installed on the phone. No driver. No other register. Slot B was not marked successful.
 
 ## Goal
 
@@ -11,11 +11,11 @@ A replug should bring USB back without a reboot. The MAX77759 opens its USB2 dat
 
 - [V] The Fold's TCPC is on the same bus as the 7 Pro, HSI2C13 `10d60000.i2c`. A read on 2026-10-25, cable in, had `USBSW_CTRL` `0x09` and charger `0x69` `CHG_DETAILS_00` `0xb5` `0x60`. Bits 6:5 of that byte were 3, which is VBUS valid. No write.
 - [V] Google's driver writes `0x09` on every attach with a data role (`tcpci_max77759.c`). `0x09` is D+/D- connected. `0x00` is open.
-- The Fold package does not run that rescue. `device/felix/NOTES.md` says a replug may need a reboot for that reason.
+- `omamobile-device-felix` 0.1.4 runs that rescue from boot. It is not installed on the phone yet, so a replug may still need a reboot until it is.
 
 ## What was built
 
-Nothing. No overlay, no module, no package change.
+`packages/omamobile-device-felix` 0.1.4. The rescue script, the service, and the `multi-user.target` wants link. Not installed on the phone. No overlay and no module.
 
 ## Risks
 

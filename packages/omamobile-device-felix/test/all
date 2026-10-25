@@ -63,9 +63,21 @@ for f in usr/bin/reboot-to \
          usr/share/omamobile/device.conf \
          usr/share/omamobile/device-felix/version \
          usr/share/licenses/omamobile-device-felix/LICENSE \
-         etc/pacman.d/omamobile-mirrorlist; do
+         etc/pacman.d/omamobile-mirrorlist \
+         usr/bin/omamobile-usb-rescue \
+         usr/lib/systemd/system/omamobile-usb-rescue.service; do
   [[ -f $tmp/root/$f ]] || fail "install stages $f"
 done
+[[ -x $tmp/root/usr/bin/omamobile-usb-rescue ]] || fail "the USB rescue is not executable"
+[[ -L $tmp/root/usr/lib/systemd/system/multi-user.target.wants/omamobile-usb-rescue.service ]] \
+  || fail "the USB rescue is not enabled"
+[[ $(readlink "$tmp/root/usr/lib/systemd/system/multi-user.target.wants/omamobile-usb-rescue.service") == ../omamobile-usb-rescue.service ]] \
+  || fail "the USB rescue wants link is wrong"
+grep -q 'i2cset -f -y "$bus" $tcpc 0x93 0x09' "$tmp/root/usr/bin/omamobile-usb-rescue" \
+  || fail "the USB rescue must write only USBSW_CTRL 0x09"
+# The only i2cset is that one close. A second write is a different step.
+[[ $(grep -c i2cset "$tmp/root/usr/bin/omamobile-usb-rescue") == 1 ]] \
+  || fail "the USB rescue has more than one write"
 grep -q 'KERNEL=="sda", MODE="0000"' "$tmp/root/usr/lib/udev/rules.d/10-omamobile-storage.rules" \
   || fail "the whole-disk node is made inaccessible"
 grep -q 'ID_PART_ENTRY_NAME}!="userdata"' "$tmp/root/usr/lib/udev/rules.d/10-omamobile-storage.rules" \

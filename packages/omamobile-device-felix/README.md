@@ -5,7 +5,8 @@ Omarchy Mobile's first userspace package for the Google Pixel Fold (codename fel
 | Path | Installs to | What it does |
 | --- | --- | --- |
 | `vendor/udev/rules.d/10-omamobile-storage.rules` | `/usr/lib/udev/rules.d` | Hides `sda` and every Android partition except `userdata` from desktop tools. Same rule as the Pixel 7 Pro. The initramfs stops its guard loop before `switch_root`; the kernel's read-only flags are what remain |
-| `vendor/systemd/network/20-usb-gadget.network` | `/usr/lib/systemd/network` | Sets usb0 to 172.16.42.1/24 after handover. A replug may need a reboot: this package does not close the USB2 switch again |
+| `vendor/systemd/network/20-usb-gadget.network` | `/usr/lib/systemd/network` | Sets usb0 to 172.16.42.1/24 after handover |
+| `bin/omamobile-usb-rescue` | `/usr/bin/omamobile-usb-rescue` | Closes the MAX77759 USB2 data switch (`USBSW_CTRL` `0x93` to `0x09`) while VBUS is valid. Enabled at boot. Stands aside once a Type-C driver owns the chip. Reads two registers and writes that one |
 | `vendor/systemd/logind.conf.d/10-omamobile-lid.conf` | `/usr/lib/systemd/logind.conf.d` | A closed fold does not suspend. The hall switch stays shut, and logind's default would suspend and retry 30s after every resume, which drops the USB gadget |
 | `vendor/systemd/logind.conf.d/10-omamobile-power-key.conf` | `/usr/lib/systemd/logind.conf.d` | A short power press does not power the phone off. Same drop-in as the Pixel 7 Pro. The long press stays the PMIC reset |
 | `vendor/NetworkManager/conf.d/10-omamobile-usb.conf` | `/usr/lib/NetworkManager/conf.d` | Keeps NetworkManager off that link |
