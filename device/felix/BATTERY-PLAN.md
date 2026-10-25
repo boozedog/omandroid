@@ -1,9 +1,13 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Battery plan (felix / gs201)
 
-Status (2026-10-25): stage 6 is not started on the phone. This file is the
-offline plan. No kernel branch, no board-file change, no boot. Charging,
-Type-C, and the charger policy stay a later stage
+Status (2026-10-25): stage 6 is not started on the phone. The kernel
+branch `omamobile-gs201-felix-battery` is cut from `omamobile` and
+describes both gauges disabled. The Fold DTB builds with both nodes
+and both buses disabled. The 7 Pro sources are unchanged. `dt-validate`
+has not been run: the tool is not installed here, and the build
+container did not start. Nothing is committed. No boot.
+Charging, Type-C, and the charger policy stay a later stage
 ([CONTRIBUTING.md](../../CONTRIBUTING.md) §5.4, stage 12).
 
 Goal: both cells report a capacity on the pack's design scale and a
@@ -72,9 +76,9 @@ The binding requires `samsung,mode` on the USI node. [V] `L/`
 `USI_MODE_I2C` on each USI it enables, as the 7 Pro board does, because
 the children are I2C devices.
 
-Stock's clock on HSI2C13 is 400 kHz in one fragment and 370 kHz in a later
-fragment on the same node, so the running overlay is 370 kHz. HSI2C15 is
-400 kHz. [V] `F/` fragments `@42`, `@121`, and `@117`.
+Stock's clock on HSI2C13 is 400 kHz in fragment `@42` and 370 kHz in the
+later fragment `@121`, so the running overlay is 370 kHz. HSI2C15 is
+400 kHz in fragment `@117`, and no later fragment changes it. [V] `F/`.
 
 `gpa9` is an alive bank. An interrupt group there gets
 `GS101_PIN_FUNC_EINT` and a pull, and no power-down pin config. `gpa7` is
@@ -92,8 +96,10 @@ Other stock children, and why they stay disabled for this stage:
 | HSI2C13 | `0x69` | `maxim,max77759chrg` | stage 12. Probe turns charging off on the 7 Pro |
 | HSI2C13 | `0x25` | `max77759tcpc` | stage 12. It owns the USB-C port |
 | HSI2C13 | `0x57` | `nxp,pca9468` | direct charger, later |
+| HSI2C15 | `0x42` | second `cirrus,cs40l26a` | haptics, stage 9 |
 | HSI2C15 | `0x43` | `cirrus,cs40l26a` | haptics, stage 9 |
 | HSI2C15 | `0x50` | `at,24c08` | battery EEPROM for `google_bms` |
+| HSI2C15 | `0x61` | `idt,p9222` | wireless charger, later |
 
 [V] `F/` fragments `@17`, `@42`, `@46`, `@41`, `@117`, `@122`.
 
@@ -114,15 +120,22 @@ Mainline binds different compatible strings than stock:
 - The secondary driver is `max1720x_battery`. Its only compatible is
   `maxim,max17201`. After it binds, `DEV_NAME` (`0x21`) low nibble 1 is a
   MAX17201 and low nibble 5 is a MAX17205. [V] `L/` `max1720x_of_match`
-  and `MAX172XX_DEV_NAME_TYPE_*`. `CONFIG_BATTERY_MAX1720X` is not in the
-  omamobile fragment, so the build that first enables this node adds
-  `CONFIG_BATTERY_MAX1720X=m`.
-- That driver has no register write. Probe reads `nRSense` (`0xCF`) through
-  an ancillary device whose `reg-names` entry is `nvmem`, and falls back
-  to address `0x0b`. A zero sense value is replaced in software with
-  10 mΩ and the supply still registers. [V] `L/` `max1720x_probe_nvmem`,
-  `i2c_new_ancillary_device`. Capacity is `reg * (500000 / rsense)` µAh
-  with `rsense` in 10⁻⁵ ohm.
+  and `MAX172XX_DEV_NAME_TYPE_*`. `CONFIG_BATTERY_MAX1720X=m` is in
+  `kernel/configs/omamobile.config` in this repository, not a kernel
+  commit. No cheetah node matches `maxim,max17201`, so the module does
+  not bind on the 7 Pro. It is not required to boot B1.1.
+- Probe does not write the model or `nRSense`. It reads `nRSense` (`0xCF`)
+  through an ancillary device whose `reg-names` entry is `nvmem`, and
+  falls back to address `0x0b`. The binding requires `reg-names` of `m5`
+  and `nvmem`. Stock's overlay says `m5db` and `nvram`; those names fail
+  `dt-validate`, and the driver looks up `nvmem`. A zero sense value is
+  replaced in software with 10 mΩ and the supply still registers.
+  Registering the supply emits a uevent. The health getter then writes
+  the alert bits in `STATUS` (`VMN`, `VMX`, `TMN`, `TMX`) when that
+  register is non-zero and is not `IMX` alone. That is not a model write.
+  [V] `L/` `maxim,max17201.yaml`, `max1720x_probe_nvmem`,
+  `max172xx_battery_health`, `power_supply_uevent`. Capacity is
+  `reg * (500000 / rsense)` µAh with `rsense` in 10⁻⁵ ohm.
 
 ## 3. Which model the small cell has
 
@@ -158,8 +171,9 @@ The read-only driver uses the sense resistor it reads from the chip.
    boot. `device.conf` keeps no `DTB_OVERLAYS` entry for this stage, so a
    normal image leaves both buses off.
 2. The first boot of a controller has no child nodes. Reads are `i2cget`
-   of the known addresses. There is no bus scan: HSI2C15 address `0x43`
-   is the haptic amplifier.
+   of the known addresses. There is no bus scan. HSI2C15 addresses
+   `0x42`, `0x43`, `0x50` and `0x61` are the haptics, the EEPROM and the
+   wireless charger.
 3. The first bind of either gauge has no interrupt. `gpa9-3` and `gpa7-3`
    stay unconfigured until a later boot asks for the alert.
 4. `max17042_battery` and `max1720x_battery` are blacklisted in
@@ -175,7 +189,10 @@ worktree `wt-felix-battery`, output `out-felix-battery`.
 
 ## 5. What was built
 
-Nothing yet.
+Local, not committed. `gs201-felix.dtb` and `gs201-cheetah.dtb` built
+from `omamobile-gs201-felix-battery`. The Fold DTB has both gauges
+`disabled`, and both USI nodes stay `disabled`. The diff against
+`omamobile` is only `gs201-felix.dts`. `dt-validate` was not run.
 
 ## 6. Risks
 
@@ -215,13 +232,12 @@ Offline. Nothing on the phone. Pass: this file.
 Offline. On `omamobile-gs201-felix-battery`, add `fuel-gauge@36` under
 `hsi2c_13` (`compatible = "maxim,max77759-fg"`, `reg = <0x36>`,
 `shunt-resistor-micro-ohms = <5000>`) and `fuel-gauge@36` under
-`hsi2c_15` (`compatible = "maxim,max17201"`, `reg = <0x36 0x0b>`,
-`reg-names = "gauge", "nvmem"` so the ancillary lookup finds `0x0b`).
-Both nodes `disabled`. Both USI nodes stay `disabled`. No
-`maxim,fg-model`, no interrupt, no charger, no TCPC, no PMIC, no
-`cs40l26`, no EEPROM. `dt-validate` and a DTB build in `out-felix-battery`.
-The secondary driver's fragment `CONFIG_BATTERY_MAX1720X=m` lands in the
-same kernel branch and is not required to boot B1.1.
+`hsi2c_15` (`compatible = "maxim,max17201"`, `reg = <0x36>, <0x0b>`,
+`reg-names = "m5", "nvmem"`). Both nodes `disabled`. Both USI nodes stay
+`disabled`. No `maxim,fg-model`, no interrupt, no charger, no TCPC, no
+PMIC, no `cs40l26`, no EEPROM, no wireless charger. `dt-validate` and a
+DTB build in `out-felix-battery`. `CONFIG_BATTERY_MAX1720X=m` is in
+`kernel/configs/omamobile.config` and is not required to boot B1.1.
 
 Pass: the DTB builds, the new nodes are `disabled`, and the 7 Pro DTB is
 byte-identical. `CONFIG_BATTERY_MAX1720X=m` adds a module to the shared
@@ -311,8 +327,8 @@ i2cget -y "$BUS" 0x36 0x06 w
 i2cget -y "$BUS" 0x36 0x18 w
 ```
 
-STATUS, `DEV_NAME`, TEMP, RepSOC, DesignCap. No read of address `0x43` or
-`0x50`.
+STATUS, `DEV_NAME`, TEMP, RepSOC, DesignCap. No read of address `0x42`,
+`0x43`, `0x50` or `0x61`.
 
 Pass: STATUS bit 1 is clear. `DEV_NAME` low nibble is 1 or 5. TEMP agrees
 with the small cell within a few degrees. The words are recorded.
@@ -323,6 +339,8 @@ inner picture changes.
 ### B1.4. Large-cell driver
 
 Risk: low. The driver reads non-volatile `nRSense` and does not write it.
+The probe uevent can write the `STATUS` alert bits. That is not a model
+write, and it is not a stop by itself.
 
 A new boot. `CONFIG_BATTERY_MAX1720X=m` is in the image.
 `max1720x_battery` is blacklisted. The overlay enables the HSI2C15 gauge
