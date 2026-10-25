@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Pixel Fold cover touch: reports
 
-Status, 2026-10-24. The chip-id gate is linux-omarchy-mobile#32 and omarchy-mobile#34. Neither has merged. A slot B boot of local `523924301` read chip id `36 40` and CRC status `00` raw `c0`. It did not reset the controller, write the flash, or request attention. System info was not read on that boot. Step 3 is the request-0 read, written locally and not booted. Step 0 is against Google's felix driver at tag `android-14.0.0_r0.102`. This file still adds no driver.
+Status, 2026-10-25. The report path is linux-omarchy-mobile#48, published head `e4b78a44a`. The chip-id gate under it is linux-omarchy-mobile#32 and omarchy-mobile#34. Neither has merged. #48 stays a draft until #32 lands, and this plan merges after #34. The phone's last cover-touch boot is still release `7.3.0-rc6-omamobile-push1-g523924301fb3`. That commit only reads the CRC register. The later reads, the GPIO reset, the scan command, and the finger result were a module hand-loaded into that release, not a build of #48's head. Step 0 is against Google's felix driver at tag `android-14.0.0_r0.102`.
 
 The power key is linux-omarchy-mobile#41. Touch in `docs/DEVICES.md` is WIP (cover chip id) from omarchy-mobile#34. Buttons stays `no` until the power-key notes merge.
 
@@ -41,6 +41,7 @@ In order:
 - [V] `G/` same tag. A touch report is one FIFO event, `event[0]` through `event[7]`. Enter is `0x13`, motion is `0x23`, leave is `0x33` (`touch/ftm5/fts_lib/ftsSoftware.h:387`). `fts_interrupt_handler` (`touch/ftm5/fts.c:3838`) reads the FIFO and dispatches those three. `fts_enter_pointer_event_handler` (`touch/ftm5/fts.c:2908`) takes the slot from the high nibble of `event[1]`, X and Y from `event[2]` through `event[4]`, and pressure from `event[5]`. At most `TOUCH_ID_MAX` (10) slots (`touch/ftm5/fts.h:186`). The non-offload path reports `BTN_TOUCH`, `ABS_MT_POSITION_X`, `ABS_MT_POSITION_Y`, and `ABS_MT_PRESSURE` (`touch/ftm5/fts.c:3047`). `fts_leave_pointer_event_handler` (`touch/ftm5/fts.c:3076`) clears the slot. The FIFO read command stays in `G/`.
 - [I] This tree has no Google touch offload. The report path to add later is the plain `input` calls above.
 - [V] `F/` board overlay, `st,fts` `st,max-coords` is `<0x437 0x82b>`. That is 1079 by 2091, the maximum coordinate, one less than the 1080 by 2092 size in the board file. It is not a different panel.
+- [V] `G/` same tag. `st,sensor_inverted_x` and `st,sensor_inverted_y` reorder heatmap and self-sense frames for touch offload (`fts.c:2580` and `:2685`). Pointer coordinates are reported raw and only clamped (`fts.c:2948`). Those properties are not `touchscreen-inverted-x` or `touchscreen-inverted-y`.
 - [I] That driver delivers events through Google's touch interface, which this tree does not have. A mainline `input` device is a later revision of this plan.
 
 ## Design
@@ -51,7 +52,7 @@ Do not request `gpa6-7` in the same change that only reads the chip id. Do not p
 
 The firmware file named in the factory node is `F/` `firmware/ftm5_fw_f10_ext.ftb`. Do not vendor that blob. The terms above do not allow shipping it.
 
-The report path never writes or erases the controller's flash, never requests a reflash, and never runs a panel init or a full panel init. It never sends a CX tuning or save command, and it never writes the MP flag. Felix's driver defines `COMPUTE_INIT_METHOD`, so `fts_chip_initialization` can compute new CX and save it and the MP flag into the controller's flash without `flash_burn`. `fts_fw_update` selects that path on its own (`fts.c:4330` through `:4372`) when the AFE versions disagree, and also when the MP flag is not `A5`, `5A`, or `DF`. The firmware and the CX calibration live in that flash. A burn holds the core, unlocks and erases it page by page, and whether the panel-init and CX area survives depends on `keep_cx`. A bad or interrupted burn can lose the cover panel's factory calibration, and this tree has no way to restore it. A flash write is a separate decision, taken together. This path only reads what is already running: system info, and the CRC status register. It does not call `fts_system_reset`. The CRC step stops after that register read. The next read is system info with `request` 0. It does not send the load command. A missing header is a result. The log is the firmware version and the CX version, not the calibration and not the die info. That step stops after the read.
+The report path never writes or erases the controller's flash, never requests a reflash, and never runs a panel init or a full panel init. It never sends a CX tuning or save command, and it never writes the MP flag. Felix's driver defines `COMPUTE_INIT_METHOD`, so `fts_chip_initialization` can compute new CX and save it and the MP flag into the controller's flash without `flash_burn`. `fts_fw_update` selects that path on its own (`fts.c:4330` through `:4372`) when the AFE versions disagree, and also when the MP flag is not `A5`, `5A`, or `DF`. The firmware and the CX calibration live in that flash. A burn holds the core, unlocks and erases it page by page, and whether the panel-init and CX area survives depends on `keep_cx`. A bad or interrupted burn can lose the cover panel's factory calibration, and this tree has no way to restore it. A flash write is a separate decision, taken together. The published report path sends four SPI things: opcode `0xfb`, opcode `0xa7`, opcode `0x87`, and scan command `0xa0 0x00 0xff`. It toggles the reset GPIO once. It does not send opcode `0xfa` or a load command, and it does not request the interrupt. Probe fails, and does not scan or register an input device, when the CRC status is non-zero, the system-info header is not `a5 01`, controller-ready does not arrive, a CX or panel CRC event arrives, or the AFE bytes or MP flag are a combination stock would panel-init. The 2026-10-24 hand-load did not do that: `salixp_poll_cx()` returned 0 on a hit and the probe continued. That return is the review fix, and it is not in published head `e4b78a44a`.
 
 ## What was built
 
@@ -61,8 +62,8 @@ Nothing for reports. The chip-id reader and its overlay are the earlier pull req
 | --- | --- | --- |
 | Chip-id reader, node disabled | linux-omarchy-mobile#32 | open |
 | Chip-id plan, notes, blacklist | omarchy-mobile#34 | open |
-| Report path | this plan, step 0 | citations only |
-| System-info read | local `salixp.c`, uncommitted | not booted |
+| Report path | linux-omarchy-mobile#48, head `e4b78a44a` | open, draft until #32 |
+| Probe stop before a stock repair | local `salixp.c`, not in `e4b78a44a` | not booted |
 
 ## Risks
 
@@ -70,7 +71,7 @@ Requesting attention while it sits low storms the interrupt line. A guessed flas
 
 ## Runbook
 
-Step 2 is the CRC status read. Do not mark slot B successful. Do not request attention. Do not write the flash.
+Steps 0 through 7 have run. Steps 3 through 7 were written afterwards, on 2026-10-24 at 16:19 -0400, in the commit that recorded the hand-loads. From here a new step is written here and agreed before it runs. Do not mark slot B successful. Do not request attention. Do not write the flash.
 
 ### 0. Read the firmware hand-off
 
@@ -102,11 +103,11 @@ Passed, 2026-10-24. See Results. One slot B boot of `523924301`. The cover node 
 
 ### 3. Read system info
 
-Passed as a hand-load on the already-running `523924301` boot, 2026-10-24. Not a new image and not marked successful. The reader is local and uncommitted. Same image rules as step 2: slot B only, not marked successful, cover node disabled in the kernel DTB, `salixp` blacklisted until a hand load after the mailbox, the ACPM protocol, and `sec-acpm`. The power-on reset is the same GPIO sequence as step 2. There is no second reset after the CRC read.
+Passed as a hand-load on the already-running `523924301` boot, 2026-10-24. The runbook was written afterwards, 2026-10-24 16:19 -0400. Not a new image and not marked successful. The reader was a hand-loaded module, not the booted image. Same image rules as step 2: slot B only, not marked successful, cover node disabled in the kernel DTB, `salixp` blacklisted until a hand load after the mailbox, the ACPM protocol, and `sec-acpm`. The power-on reset is the same GPIO sequence as step 2. There is no second reset after the CRC read.
 
 The read is opcode `0xA7`, 16-bit address 0, one dummy byte, and 216 payload bytes. It does not send `SYS_CMD_LOAD_DATA`. It does not call `fts_system_reset`. It does not write the flash. Attention stays unrequested.
 
-**Expect / pass:** dmesg has `salixp spi0.0: chip id 36 40`, `salixp spi0.0: crc status 00 raw c0` or a new raw byte with the low two bits clear, and either `salixp spi0.0: sysinfo fw NNNN cxver NNNN` or `salixp spi0.0: sysinfo header NN id NN` followed by `salixp spi0.0: sysinfo not loaded`. A missing header is a pass for this step. The driver stops after that read. Both cover rails show one user. Unbind leaves both with no users. No other rail changes. No UFS error-handler line.
+**Expect / pass:** dmesg has `salixp spi0.0: chip id 36 40`, `salixp spi0.0: crc status 00 raw c0` or a new raw byte with the low two bits clear, and `salixp spi0.0: sysinfo header a5 id 01`. The hand-load treated a missing header as a pass and stopped. The review fix fails probe on a header other than `a5 01`. Both cover rails show one user. Unbind leaves both with no users. No other rail changes. No UFS error-handler line.
 
 **Stop:** attention is requested, the driver resets the controller or writes the flash, any rail other than LDO25M and LDO26M changes, a UFS error handler, USB drops, or the phone does not come back. If ABL falls back to slot A, stop and take a fresh backup.
 
@@ -116,7 +117,7 @@ The read is opcode `0xA7`, 16-bit address 0, one dummy byte, and 216 payload byt
 
 ### 4. Read the three AFE version bytes
 
-Passed as a hand-load on the already-running `523924301` boot, 2026-10-24. Not a new image and not marked successful. Same hand-load as step 3. No new boot. The read is the same framebuffer block. It logs the three bytes that follow the CX version. It does not call `fts_system_reset`, send a scan command, write the flash, or request attention.
+Passed as a hand-load on the already-running `523924301` boot, 2026-10-24. The runbook was written afterwards, 2026-10-24 16:19 -0400. Not a new image and not marked successful. Same hand-load as step 3. No new boot. The read is the same framebuffer block. It logs the three bytes that follow the CX version. It does not call `fts_system_reset`, send a scan command, write the flash, or request attention.
 
 **Expect / pass:** dmesg has `sysinfo afe cfg NN cx NN panel NN` after the header and version lines from step 3. A mismatch between those bytes is a result, not a reason to initialize the panel. Both cover rails show one user. Unbind leaves both with no users. No other rail gains a user. No UFS error-handler line.
 
@@ -128,9 +129,11 @@ Passed as a hand-load on the already-running `523924301` boot, 2026-10-24. Not a
 
 ### 5. Poll CX CRC errors after a system reset
 
-Passed as a hand-load on the already-running `523924301` boot, 2026-10-24. Not a new image and not marked successful. `fts_fw_update` (`touch/ftm5/fts.c:4287`) calls `fts_system_reset` and polls `0xA0`, `0xA1`, `0xA5`, and `0xA6`. A hit is the flash path. This step stops on a hit and does not write the flash. On this board `fts_system_reset` toggles the reset GPIO and waits for controller-ready (`ftsCore.c:66`). It does not request attention.
+Passed as a hand-load on the already-running `523924301` boot, 2026-10-24. The runbook was written afterwards, 2026-10-24 16:19 -0400. Not a new image and not marked successful. `fts_fw_update` (`touch/ftm5/fts.c:4287`) calls `fts_system_reset` and polls `0xA0`, `0xA1`, `0xA5`, and `0xA6`. A hit is the flash path. On this board `fts_system_reset` toggles the reset GPIO and waits for controller-ready (`ftsCore.c:66`). It does not request attention.
 
-**Expect / pass:** dmesg names whether any of those four events arrived. No event is a pass for this step. An event is also a pass, and the driver stops. No flash write. No scan command. No attention request.
+The hand-load logged the miss and returned 0, so probe continued to the scan command. That is not what this step claimed. The review fix fails probe, before the scan command and before an input device is registered, on a hit, on no controller-ready, and on a panel CRC event (`0x22` or `0x23`). That fix is not in published head `e4b78a44a` and has not been booted.
+
+**Expect / pass:** dmesg names whether any of those four events arrived within 100 ms of the reset. No event, and controller-ready, is a pass. An event fails probe and does not scan. No flash write. No attention request.
 
 **Stop:** the driver writes or erases the flash, attention is requested, any rail other than LDO25M and LDO26M gains a user, a UFS error handler, USB drops, or the phone does not come back. If ABL falls back to slot A, stop and take a fresh backup.
 
@@ -140,19 +143,43 @@ Passed as a hand-load on the already-running `523924301` boot, 2026-10-24. Not a
 
 ### 6. Scan command, no interrupt
 
-Passed as a hand-load on the already-running `523924301` boot, 2026-10-24. Not a new image and not marked successful. `senseOn` (`ftsTool.c:283`) is scan command `0xA0`, mode `0x00`, settings `0xFF`. Google writes a hardware-register preamble first (`ftsCore.c:380`: opcode `0xFA`, address `0x20000000`). That is the same prefix as the flash commands, so this step does not send it. It writes the three-byte scan command and reads the FIFO for echo `0x43 0x01` followed by that command. It does not request `gpa6-7`.
+Passed as a hand-load on the already-running `523924301` boot, 2026-10-24. The runbook was written afterwards, 2026-10-24 16:19 -0400. Not a new image and not marked successful. `senseOn` (`ftsTool.c:283`) is scan command `0xA0`, mode `0x00`, settings `0xFF`. Google writes a hardware-register preamble first (`ftsCore.c:380`: opcode `0xFA`, address `0x20000000`). That is the same prefix as the flash commands, so this step does not send it. It writes the three-byte scan command and reads the FIFO for echo `0x43 0x01` followed by that command. It does not request `gpa6-7`.
 
 **Expect / pass:** dmesg names whether the echo arrived. Either result is a pass for this step. No flash write. No interrupt request.
 
 **Stop:** the preamble or any other hardware-register write is sent, the flash is written or erased, attention is requested, any rail other than LDO25M and LDO26M gains a user, a UFS error handler, USB drops, or the phone does not come back. If ABL falls back to slot A, stop and take a fresh backup.
 
+**Rollback:** unbind `salixp`. Do not mark slot B successful.
+
+**Risk:** one scan command on a controller whose CRC poll had already returned clear. This step does not send the `0xfa` preamble and does not request attention.
+
 ### 7. Report a FIFO touch without the interrupt
 
-Loaded on the already-running `523924301` boot, 2026-10-24, and left bound. Not a new image and not marked successful. After the scan command, a work item reads the same FIFO and, for enter, motion, and leave, reports the existing 8-byte decode into the input device. It does not request `gpa6-7`. The first eight touch events are logged. Remove disables the work before the input device goes away.
+Passed as a hand-load on the already-running `523924301` boot, 2026-10-24, and left bound. The runbook was written afterwards, 2026-10-24 16:19 -0400. Not a new image and not marked successful. After the scan command, a work item reads the same FIFO and, for enter, motion, and leave, reports the existing 8-byte decode into the input device. It does not request `gpa6-7`. The first eight touch events are logged. Remove disables the work before the input device goes away.
 
 **Expect / pass:** with a finger on the cover, dmesg shows `touch event`, and an input event is visible to the session. No interrupt request. No flash write. No hardware-register preamble.
 
 **Stop:** attention is requested, the preamble or any other hardware-register write is sent, the flash is written or erased, any rail other than LDO25M and LDO26M gains a user, a UFS error handler, USB drops, or the phone does not come back. If ABL falls back to slot A, stop and take a fresh backup. Unbind if the pointer moves and the finger is not on the cover.
+
+**Rollback:** unbind `salixp`. Do not mark slot B successful.
+
+**Risk:** a 10 ms FIFO poll on a controller that is already scanning. This step does not request attention and does not write the flash.
+
+### 8. Request the attention line
+
+Not run. Written 2026-10-25, before any boot, for agreement first. Do not run this step until that agreement is in the review. The boot is a build of #48's head after the probe-stop fix, packed by `bin/omamobile images` and written with `bin/omamobile push`. It is not a hand-loaded module and not a hand-edited DTB. `tools/phone-smoke` is the report. Slot B is not marked successful.
+
+Before the module is loaded, arm a dead-man: `systemd-run --unit=salixp-deadman --on-active=90` that unbinds `salixp` and does not leave the IRQ requested. Confirm over a fresh SSH login, then stop the timer. If the confirmation does not arrive, the timer undoes the bind.
+
+The driver may request `gpa6-7` only after controller-ready, and only level-low, and it disables the IRQ before the scan command the way `fts_interrupt_install` does. It still does not write the flash. A storm is the stop, not a reason to keep the line requested.
+
+**Expect / pass:** one finger produces an enter and a leave through the IRQ, `tools/phone-smoke` passes, and the IRQ count is not climbing while the finger is up. No flash write.
+
+**Stop:** the IRQ count climbs with no finger, USB drops, a UFS error handler runs, the flash is written, the phone does not come back, or the dead-man fires. If ABL falls back to slot A, stop and take a fresh backup.
+
+**Rollback:** the dead-man unbinds `salixp`. Do not mark slot B successful.
+
+**Risk:** a level-low line that sits low storms the interrupt. The dead-man is the bound on that.
 
 ## Results
 
@@ -166,7 +193,7 @@ salixp spi0.0: sense echo yes events 2
 
 The echo matched the scan command. The other status event is type `0x05`, force calibration triggered (`ftsSoftware.h`). The driver did not start a calibration and did not write a register. No `salixp` interrupt. The two cover rails each gained one user and returned to zero on unbind. No other rail gained a user. No UFS error-handler line.
 
-2026-10-24. Fifth hand-load on the same boot. The poller stayed bound. A finger on the cover produced an enter and motion on slot 0. The log stops after eight events; later motion and the lift were still reported to the input device. No `salixp` interrupt. No UFS error-handler line. Hyprland was not running, so it did not see the touch. `sddm.service` is not installed. The DRM output is the cover framebuffer, connected and enabled. A Hyprland start on that device, as the login user, aborted in backend creation before it opened the touch device. The 2026-10-21 cover session was software-rendered: the lua config, `LIBGL_ALWAYS_SOFTWARE=1`, `GALLIUM_DRIVER=llvmpipe`, and `AQ_DRM_DEVICES` pointed at the cover framebuffer. Restarting that way left Hyprland active. Its control socket answered. The renderer still reports no matching device for the cover output and retries the commit. Libinput had opened the touch node and refused it: not tagged as a touchscreen, because the input device did not advertise position axes. A reload that sets those axes made udev tag it, and libinput then accepted it. A later finger produced an enter and motion, and the cover pointer disappeared. A full-screen window then changed while the finger was down. The touch coordinates moved across the cover. The booted device tree inverted both axes, and that put the reported point opposite the finger. A slot B write of that same image with the invert properties removed, not marked successful, reported the point on the finger with no shell correction. A point at 1077, 2025 was the bottom edge. That is Hyprland taking the touch. The renderer still reports no matching device for the cover output. The inner panel was not programmed. The touch device was left bound.
+2026-10-24. Fifth hand-load on the same boot. The poller stayed bound. A finger on the cover produced an enter and motion on slot 0. The log stops after eight events; later motion and the lift were still reported to the input device. No `salixp` interrupt. No UFS error-handler line. Hyprland was not running, so it did not see the touch. `sddm.service` is not installed. The DRM output is the cover framebuffer, connected and enabled. A Hyprland start on that device, as the login user, aborted in backend creation before it opened the touch device. The 2026-10-21 cover session was software-rendered: the lua config, `LIBGL_ALWAYS_SOFTWARE=1`, `GALLIUM_DRIVER=llvmpipe`, and `AQ_DRM_DEVICES` pointed at the cover framebuffer. Restarting that way left Hyprland active. Its control socket answered. The renderer still reports no matching device for the cover output and retries the commit. Libinput had opened the touch node and refused it: not tagged as a touchscreen, because the input device did not advertise position axes. A reload that sets those axes made udev tag it, and libinput then accepted it. A later finger produced an enter and motion, and the cover pointer disappeared. A full-screen window then changed while the finger was down. The touch coordinates moved across the cover. The booted device tree inverted both axes, and that put the reported point opposite the finger. A later slot B write of that same image removed the invert properties. `uname -r` was still `7.3.0-rc6-omamobile-push1-g523924301fb3`. The image was not a rebuild of #48 head `e4b78a44a`, and slot B was not marked successful. The write tool and the DTB filename were not recorded. The polling reader was loaded after that boot and was not part of the image. The reported point sat on the finger, including 1077, 2025 at the bottom edge, with no shell correction. That is Hyprland taking the touch. The renderer still reports no matching device for the cover output. The inner panel was not programmed. The touch device was left bound.
 
 ```
 salixp spi0.0: touch event 13 slot 0
@@ -199,7 +226,7 @@ salixp spi0.0: sysinfo header a5 id 01
 salixp spi0.0: sysinfo fw 0003 cxver ffff
 ```
 
-The header matched, so the block was present without a system reset and without a load command. The firmware version field is `0003`. The CX version field is `ffff`, which is not the calibration. The driver did not reset the controller, write the flash, or request attention. No `salixp` interrupt. `vdd-outer-ts` and `avdd-outer-ts` each went from zero users to one, and unbind returned both to zero. The other S2MPG12 LDOs registered with zero users when `sec-acpm` loaded and did not gain a user. No UFS error-handler line.
+A later request-0 read on that same hand-loaded module logged `salixp spi0.0: sysinfo mp flag a5`. That line is in the #48 description. `a5` is the factory full panel init (`MP_FLAG_FACTORY`). The header matched, so the block was present without a system reset and without a load command. The firmware version field is `0003`. The CX version field is `ffff`, which is not the calibration. The driver did not reset the controller, write the flash, or request attention. No `salixp` interrupt. `vdd-outer-ts` and `avdd-outer-ts` each went from zero users to one, and unbind returned both to zero. The other S2MPG12 LDOs registered with zero users when `sec-acpm` loaded and did not gain a user. No UFS error-handler line.
 
 2026-10-24. Slot B boot of `523924301`, release `7.3.0-rc6-omamobile-push1-g523924301fb3`. Not marked successful. `salixp` was blacklisted and loaded by hand after the mailbox, the ACPM protocol, and `sec-acpm`.
 
@@ -216,6 +243,8 @@ Masked status `00` is the low two bits of raw `c0` (`CRC_MASK` is `0x03`). Those
 
 ## Open questions
 
-- The request-0 read answers whether firmware is present and which versions it reports. On this phone the header matched, the firmware field was `0003`, the CX version field was `ffff`, and the three AFE bytes were `02`. `crc status 00` is the base CRC register (`CRC_MASK` `0x03`) before any reset. It does not say the CX area is valid. Config and CX CRC errors show up as events only after `fts_system_reset` (`ftsCore.c:980` through `:999`). CX integrity stays open until a step we agree on. A reset is not a flash write, and it gets its own runbook. The MP flag in the same system-info block (`ftsCore.c:706`) read `a5` on the next request-0 read. `A5` is the factory full panel init. The scan command was accepted after a GPIO reset, and the controller also reported force calibration triggered. The driver did not start that calibration, did not run a panel init, and did not write the MP flag.
-- The report layout above is from `G/`. This phone has not produced one.
+- Step 5 showed no CX CRC event within 100 ms of controller-ready. The four types Google checks, `0xA0`, `0xA1`, `0xA5`, and `0xA6`, did not arrive. The hand-load returned 0 and continued, so that boot does not show the probe stop. What is still open is a boot of the review fix, which fails probe instead of scanning, and the panel CRC types `0x22` and `0x23`, which that boot did not poll.
+- The status event `43 05` was logged as type only. Google's handler logs `event[2]` through `event[7]`; `event[2]` of `0x01` is "Sense on Force cal". The review fix logs those bytes. It has not been booted, so this phone has not shown which force-calibration kind that event was.
+- Step 8, the attention line, is written and not agreed. It does not run until that agreement.
+- The hand-loaded module's blob was not recorded. Published head `e4b78a44a` has `salixp.c` blob `2a479290`. The running release was `523924301`, whose driver only reads the CRC register. The next boot is a build of the reviewed head, packed by `bin/omamobile images`, written with `bin/omamobile push`, and reported with `tools/phone-smoke`.
 - The inner panel stays on its own plan.
