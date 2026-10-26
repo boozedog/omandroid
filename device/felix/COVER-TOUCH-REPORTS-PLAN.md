@@ -171,7 +171,7 @@ Passed as a hand-load on the already-running `523924301` boot, 2026-10-24, and l
 
 ### 8. Boot the folded report path, no interrupt
 
-Not run. Written 2026-10-25. The safety net was rewritten on 2026-10-26 for the review's two points, before any boot. This step is attended. It does not request `gpa6-7`. The boot is a packed build of published head `aa42f8a8c`, `salixp.c` blob `c1752a85`, which fails probe on config CRC events `0x20` and `0x21` and on a missing scan echo. It is not a boot of ancestor `b2a37752b`, not a hand-loaded module, and not a hand-edited DTB. If the review's fold lands before the boot, the identity is the blob, not a commit id that will change. `tools/phone-smoke` is the report. Slot B is not marked successful.
+Passed, 2026-10-26. See Results. This step is attended. It does not request `gpa6-7`. The boot is a packed build of published head `aa42f8a8c`, `salixp.c` blob `c1752a85`, which fails probe on config CRC events `0x20` and `0x21` and on a missing scan echo. It is not a boot of ancestor `b2a37752b`, not a hand-loaded module, and not a hand-edited DTB. If the review's fold lands before the boot, the identity is the blob, not a commit id that will change. `tools/phone-smoke` is the report. Slot B is not marked successful.
 
 Build that head with an explicit worktree and output directory. For this pack only, set `DTB_OVERLAYS=cover-touch` in `device/felix/device.conf`, run `bin/omamobile images`, then remove that line. Do not commit it. The overlay is the one in omarchy-mobile#34, `device/felix/overlays/cover-touch.dtso`. It enables the disabled node. It does not set `regulator-always-on`. It is not a hand edit of the DTB.
 
@@ -212,6 +212,22 @@ The driver may request `gpa6-7` only after controller-ready, and only level-low,
 **Risk:** a level-low line that sits low storms the interrupt. The dead-man is the bound on that.
 
 ## Results
+
+2026-10-26. Step 8. Slot B boot of published head `aa42f8a8c`, `salixp.c` blob `c1752a85`, release `7.3.0-rc6-omamobile-push1-gaa42f8a8c1bf`. Not marked successful. The first reboot stayed on slot A. Slot B was selected and rebooted without a second write. `salixp` stayed blacklisted and was loaded from that release after the mailbox, the ACPM protocol, and `sec-acpm`. Both cluster watchdogs were already inactive. The feeder and the 90 s dead-man were armed before the load, a new SSH login answered, and both were then stopped. The dead-man did not fire.
+
+```
+salixp spi0.0: chip id 36 40
+salixp spi0.0: crc status 00 raw c0
+salixp spi0.0: sysinfo header a5 id 01
+salixp spi0.0: sysinfo fw 0003 cxver ffff
+salixp spi0.0: sysinfo afe cfg 02 cx 02 panel 02
+salixp spi0.0: sysinfo mp flag a5
+salixp spi0.0: cx poll ready yes config-crc no cx-crc no panel-crc no events 1
+salixp spi0.0: sense echo yes events 2
+salixp spi0.0: touch event 13 slot 0
+```
+
+Controller-ready arrived. No config CRC event, no CX CRC event, and no panel CRC event. The sense echo arrived. A finger produced an enter and motion on slot 0 while Hyprland had the device open. The log stops after eight events. No `salixp` interrupt. No flash write. No UFS error-handler line. `vdd-outer-ts` and `avdd-outer-ts` each went from zero users to one (`spi0.0-vdd`, `spi0.0-avdd`). No other rail gained a user. `tools/phone-smoke` passed the required checks, including the session, after Hyprland and quickshell were started by hand on the cover framebuffer. The GPU render node was panthor. The GPU cap stayed 0. The inner panel was not programmed. Slot B was not marked successful.
 
 2026-10-24. Fourth hand-load on the same boot. The scan command was written. The hardware-register preamble was not. No flash write. No interrupt request.
 
@@ -273,8 +289,8 @@ Masked status `00` is the low two bits of raw `c0` (`CRC_MASK` is `0x03`). Those
 
 ## Open questions
 
-- Step 5 showed no CX CRC event within 100 ms of controller-ready. The four types Google checks, `0xA0`, `0xA1`, `0xA5`, and `0xA6`, did not arrive. The hand-load returned 0 and continued, so that boot does not show the probe stop. The panel CRC types `0x22` and `0x23` did not arrive either. Config CRC types `0x20` and `0x21` are the same class of stop. They were not in that hand-load's fail set. Published head `aa42f8a8c`, `salixp.c` blob `c1752a85`, fails probe on them, and on a missing scan echo. Step 8 is the boot of that head. The fold the review asked for is before #48 leaves draft, not before this boot. This phone's header, MP flag, and AFE bytes do not take the repair path, so the stop is still a code fact, not a log line. The stop set is not the whole of stock's write decisions: felix leaves auto firmware update on, and stock would also flash on a version difference with the file.
-- The status event `43 05` was logged as type only. Google's handler logs `event[2]` through `event[7]`; `event[2]` of `0x01` is "Sense on Force cal". The published driver logs those bytes. It has not been booted, so this phone has not shown which force-calibration kind that event was.
-- Step 8 names published head `aa42f8a8c`, `salixp.c` blob `c1752a85`. It does not run on ancestor `b2a37752b`. The safety net now arms a watchdog feeder and confirms with `tools/phone-ssh --fresh`. It has not run. Step 9, the attention line, is written and not agreed. Its code is not in #48, so it does not name a head.
-- The hand-loaded module was `insmod`'d into the non-dirty `523924301` release after the mailbox, the ACPM protocol, and `sec-acpm`. Its blob was not recorded, so it is not known whether that file was the blob Derek asked about, `2a479290`. Ancestor `b2a37752b` has `salixp.c` blob `9cfad57f`. Published head `aa42f8a8c` has `salixp.c` blob `c1752a85`. The running release's own driver only reads the CRC register.
+- Step 5 showed no CX CRC event within 100 ms of controller-ready. The four types Google checks, `0xA0`, `0xA1`, `0xA5`, and `0xA6`, did not arrive. The hand-load returned 0 and continued, so that boot does not show the probe stop. The panel CRC types `0x22` and `0x23` did not arrive either. Config CRC types `0x20` and `0x21` are the same class of stop. They were not in that hand-load's fail set. Published head `aa42f8a8c`, `salixp.c` blob `c1752a85`, fails probe on them, and on a missing scan echo. Step 8 booted that head on 2026-10-26. The fold the review asked for is before #48 leaves draft. It was not done before this boot. This phone's header, MP flag, and AFE bytes do not take the repair path, so the stop is still a code fact, not a log line. The stop set is not the whole of stock's write decisions: felix leaves auto firmware update on, and stock would also flash on a version difference with the file.
+- The status event `43 05` on the step 8 boot was `43 05 01 00 00 00 00 01`. Google's handler logs `event[2]` through `event[7]`; `event[2]` of `0x01` is "Sense on Force cal". The driver did not start a calibration and did not write a register.
+- Step 8 ran on 2026-10-26 on published head `aa42f8a8c`, `salixp.c` blob `c1752a85`, not on ancestor `b2a37752b`. The feeder and the fresh SSH confirmation ran. Step 9, the attention line, is written and not agreed. Its code is not in #48, so it does not name a head.
+- The hand-loaded module was `insmod`'d into the non-dirty `523924301` release after the mailbox, the ACPM protocol, and `sec-acpm`. Its blob was not recorded, so it is not known whether that file was the blob Derek asked about, `2a479290`. Ancestor `b2a37752b` has `salixp.c` blob `9cfad57f`. Published head `aa42f8a8c` has `salixp.c` blob `c1752a85`. The `523924301` release's own driver only reads the CRC register. The step 8 release is `aa42f8a8c`.
 - The inner panel stays on its own plan.
