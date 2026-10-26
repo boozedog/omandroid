@@ -89,6 +89,55 @@ never change, so reviews can cite them.
   read-modify-write SMC; only a masked restore tells hardware status bits
   from stored ones. *Check:* the probe's call, the restore's mask, and
   Google's own users of that `pmu-offset`. *From:* issue #28.
+- **L-81. A request that cycles USB comes with its own way back.** The
+  gadget is the phone's only link, so "unbind and rebind dwc3" ends the
+  session that would rebind it. *Check:* any requested step that touches
+  dwc3, the USB PHY or the gadget gives one detached job (`systemd-run
+  --unit=…`), a dead-man reboot armed first, the configfs `UDC` re-attach, a
+  fresh SSH login to confirm, and a stop condition (AGENTS.md section 1).
+  *From:* kernel #33, round 2 (correcting round 1's bare request).
+- **L-82. A runbook that avoids `bin/omamobile flash|push` needs a reason we
+  can trace to the code.** #34's plan had the operator write slot B by hand,
+  blaming `push` for a slot A fallback that comes from the initramfs USB-host
+  safety net (no host in 45 s, crash, ABL falls back), whatever wrote the
+  images. *Check:* grep plans for "do not use … flash/push" and hand-written
+  `dd` or `fastboot flash` steps; if the tool really is wrong, fix the tool.
+  *From:* #34, round 2.
+- **L-88. A dead-man for a driver-cycle test must not go through the path
+  under test.** `reboot-to` runs `device_shutdown`, which husky's DWC3 cycle
+  hung. *Check:* the runbook arms an independent `echo b >
+  /proc/sysrq-trigger` job (it skips driver shutdown), is run attended, and
+  has a view that isn't USB (`printk` at 8 on the panel). Extends L-81.
+  *From:* kernel #33, husky test 23. (See C-3: the cycle froze the SoC; it
+  didn't hang shutdown.)
+- **L-89. A guarded tool that contributors can't use gets bypassed.** With
+  an SSH key that needs a tap per connection, `push` asked for about 25
+  taps, so the felix contributor wrote slot B by hand. *Check:* when a
+  runbook avoids a tool, find the friction and fix the tool, not only the
+  rule. Extends L-82. *From:* #34, round 3.
+- **L-90. A touch controller's firmware update can erase its calibration.**
+  FTM5's `flash_burn` erases the on-chip flash that also holds CX (whether it
+  survives depends on `keep_cx`). *Check:* a plan for such a part says that
+  nothing writes or erases that flash without the maintainer's go, and asks
+  its firmware questions read-only. *From:* #35.
+- **L-91. A button finding names the exact combination, and the recovery
+  docs follow it.** On husky Power alone does nothing; Power + Volume Up for
+  15-30 s resets it, so CONTRIBUTING's "hold Power" fails there. *Check:* a
+  new device's recovery keys reach CONTRIBUTING §3.4 and AGENTS.md. *From:*
+  #23.
+- **L-108. A touch controller can rewrite its own calibration without a
+  firmware flash.** ST FTM5 built with `COMPUTE_INIT_METHOD` (felix's
+  `fts.h`) runs a full panel init when the AFE versions differ or the MP flag
+  isn't a factory value, saving new CX and the MP flag to the chip's flash.
+  *Check:* a "no flash writes" rule for such a part also forbids panel init,
+  CX tuning or save commands and MP flag writes; read the init-method
+  `#define` in the vendor header. Extends L-90. *From:* #35, round 10.
+- **L-109. Phone results posted ahead of the plan are recorded, and their
+  code published, before the next boot.** #35's plan said "no phone step"
+  while its comments reported reads from a kernel in no repository. *Check:*
+  the boot goes into Results with `uname -r`, the tree and how slot B was
+  written, and the code is pushed (branch or draft PR) with a runbook before
+  it boots again. Extends L-34. *From:* #35, round 10.
 
 ## Shared code and the reference device
 
@@ -151,6 +200,27 @@ never change, so reviews can cite them.
   rails (and LDO27M/LDO28M its display rails). *Check:* look the rail up in
   NOTES and the plans, and name those peripherals in the read-only cheetah
   boot's Expect line. *From:* kernel #27, round 3.
+- **L-87. A new installer refusal fed by bootloader variables is checked
+  against the reference phone's real `getvar all` capture,** line endings
+  included, before it can refuse cheetah. *From:* #27, round 3 (cheetah's ABL
+  lists `partition-size` for all five `_b` partitions, so the refusal holds).
+- **L-110. A shared-driver change confined to one static function is
+  proven cheetah-neutral by comparing the object function by function.**
+  Build the `.o` at base and head with the same config and diff the
+  disassembly per function: for #42 only `exynos2200_usbdrd_phy_exit`
+  changed. Extends L-8. *From:* kernel #42.
+- **L-111. When a shared driver moves constants into per-SoC match data,
+  prove "unchanged on cheetah" with a table and a boot, not an object diff.**
+  Loads through `dc->soc` change the object anyway. *Check:* each new field's
+  gs201 value next to the constant it replaced, each new branch's gs201
+  condition, then one boot with before/after reads of the driver's own
+  counters. *From:* kernel #46.
+- **L-112. A core change that makes a reserved value valid updates the
+  binding that reserved it, and names the boards that change.** reboot-mode
+  has skipped a zero magic since 2016 and its binding says "non-zero".
+  *Check:* `git log -S` on the binding for the rule's origin, `git grep` for
+  the value across all DTs (`da850-lego-ev3`'s zero `mode-normal`, written `<0x00000000>`), and both
+  in the commit message. *From:* kernel #45.
 
 ## Shell and scripts
 
@@ -289,6 +359,93 @@ never change, so reviews can cite them.
   a shared driver.** It showed #33's coming conflict, and an upstream change
   to cheetah's PIPE3 path that our next base move will bring (an L-51
   event). *From:* kernel #33.
+- **L-83. A `Fixes:` id that CI calls `UNKNOWN_COMMIT_ID` may still be
+  right.** CI's clone holds only our squashed base; a clone with the upstream
+  remote resolves it. *Check:* `git log -1 <id>` there (or git.kernel.org),
+  and confirm it introduced the code being fixed (extends L-30). *From:*
+  kernel #33, round 2.
+- **L-84. For a rebased series, compare the preimages as well as the
+  results.** Identical blobs at both heads *and* both bases mean earlier
+  object comparisons (L-8) still hold without a rebuild; matching results on
+  a moved base mean they must be redone (extends L-69). *From:* kernel #33,
+  round 2.
+- **L-92. On Exynos CMUs the gate enable bit (CG_VAL, bit 21) means "on"
+  only in manual mode.** MANUAL is bit 20, auto-gating bit 28, and the CMU's
+  controller option has a global auto bit. *Check:* a read-only gate follows
+  the mode, as Google's `ra_get_gate()` does, or the PR shows the handoff
+  values; a vendor `HWACG_VCLK`/`_QCH` clock is a hint it's automatic.
+  *From:* kernel #34 (a wrong read would leave the watchdogs unowned).
+- **L-93. The unused-regulator cleanup acts only on regulators the DT
+  describes without `regulator-always-on`.** Undescribed outputs are never
+  switched off; a described one with no consumer is, about 30 s in.
+  *Check:* "keeps it out of the cleanup" claims against `of_regulator.c` and
+  `regulator_late_cleanup()`; inherited rails a board describes carry
+  always-on until a consumer owns them. Extends C-1. *From:* kernel #35.
+- **L-94. Find a vendor rail's consumer in the board dtsi's `&node {
+  …-supply }` overrides, not from its schematic name.** G4's `L8M_USB` rails
+  belong to Google's HSI0 power-domain helper, not the PHY. *From:* kernel
+  #35.
+- **L-95. A regulator node without voltage limits can't change state.** So
+  "no other rail changed" on a new PMIC regulator driver comes down to which
+  DT nodes have constraints. *From:* kernel #32, round 5.
+- **L-96. A binding describes the hardware, not Linux's power policy.** No
+  `power-domains: false` for a block stock gives a domain; match the sibling
+  SoC's rule and put "no domain because firmware leaves it on" as a comment
+  on the board node. *From:* kernel #40.
+- **L-97. dtschema's core schema rejects a string property named
+  `description`.** *Check:* when a binding types a vendor node, validate the
+  vendor's exact node against the base's schemas and the head's, and ask
+  whether the firmware needs what the schema makes the board drop. *From:*
+  kernel #37, kernel #13.
+- **L-98. A binding that requires a clock is usable only once the clock
+  provider exports it.** *Check:* grep the SoC's clock header and the open
+  clock PRs; name the missing provider as the next step. *From:* kernel #39.
+- **L-99. Read the vendor driver's read path, not only its register map.**
+  Google reports a fixed 22 °C on MAX77779 gauge firmware below 1.15, so the
+  Temp register isn't trusted there. *From:* kernel #38.
+- **L-100. Check a per-board scale value in three public places:** the board
+  node or the vendor default, the battery model's name, and a design value
+  it implies (`nDesignCap` × LSB = the rated mAh). *From:* kernel #38 (the
+  2 mΩ shunt).
+- **L-101. A Kconfig `default` tied to another symbol doesn't follow it
+  under fragment merging,** because defconfig has already written "is not
+  set". *Check:* the merged `.config`, made the way `bin/omamobile kernel`
+  makes it. *From:* #23 (`DETECT_HUNG_TASK`).
+- **L-113. Before accepting "Google's driver for <SoC> does X", find the
+  driver that SoC's defconfig builds.** soc/gs has two USB PHY drivers
+  matching `samsung,exynos-usbdrd-phy`; #42 cited `phy-exynos-usb3p1.c`, but
+  zuma builds `CONFIG_PHY_EXYNOS_USBDRD_EUSB`, and the cited function only
+  acts on USBCON v3.0 (zuma is 0x600). *Check:* the defconfig and module
+  list, the module's files in `Kbuild`, then any version test in the cited
+  function against the stock DT. Extends L-56 and L-77. *From:* kernel #42.
+- **L-114. Reserve a stock address only if Google's dtsi gives the region
+  a `reg`.** A `size` + `alloc-ranges` pool (`tui`, `mfc_fw`, `famodel`) has
+  an address only because stock allocated it there on that boot. *From:*
+  kernel #43.
+- **L-115. When a PHY driver picks its settings from `clk_get_rate()`, the
+  board's nominal fixed clocks become PHY configuration.**
+  `phy-snps-eusb2.c` takes FSEL and the PLL divider from an exact-rate table,
+  so a CAL nominal rate or a mux reading the other way decides whether the
+  PHY initialises. *Check:* trace the clock to its root and ask for the mux
+  selections and the `clk_summary` rate at handoff. Extends L-58. *From:*
+  kernel #40.
+- **L-116. A fix in a PHY's exit path also covers resume.** dwc3 calls
+  `phy_exit()` on device-mode suspend and touches the core in
+  `dwc3_phy_setup()` before `phy_init()`. *Check:* list the consumer's
+  `phy_exit` callers and the first register access after each, and name the
+  untested paths in the review. *From:* #23 tests 24-29, kernel #42.
+- **L-117. A comment that says "all variants" is checked against every
+  variant's vendor driver.** tegu ships three panels (`panel-gs-tg4a/b/c`);
+  TG4A's porches and size differ. *Check:* the device's `BUILD.bazel` for the
+  list, then each file. Extends L-56. *From:* kernel #46.
+- **L-118. On Tensor, SYSIP_DAT0 0x00 means "normal" in Google's reboot
+  driver** (`pixel-gs201-reboot.c`, `pixel-zuma-reboot.c` in
+  kernel/google-modules/power/reset). Check reboot-mode claims against that
+  file, not a contributor's harness. *From:* kernel #45.
+- **L-119. A blank line before `Signed-off-by:` takes `Link:` out of the
+  trailer block.** checkpatch doesn't flag it. *Check:* `git log -1
+  --format=%B <c> | git interpret-trailers --parse` lists every intended
+  trailer. *From:* kernel #35, round 10.
 
 ## The gates themselves
 
@@ -356,6 +513,31 @@ never change, so reviews can cite them.
   `kernel-pr-check` now gives checkpatch each commit's own bindings and
   MAINTAINERS, and prints the warnings (extends L-30). *From:* kernel #21,
   #28, #33, rounds 1 and 2.
+- **L-102. Feed a gate a known failure.** The device-tree comparison kept
+  only lines saying "warning" or "error"; dt-validate's say neither, so
+  every "dtbs_check, no new warnings" (ours and CI's) was blind until
+  476901b. A reused `--build` OUT also kept an earlier tree's processed
+  schema. Extends L-30. *From:* kernel #13 (found by its author).
+- **L-103. A passing gate log can hide a skipped check.** The project
+  container has no dtschema, so its runs print "# no dt-validate … skipped"
+  and still pass. *Check:* grep the log for `SKIP` and `skipped` before
+  quoting "dtbs_check passes"; run it where dtschema is installed. *From:*
+  round 9.
+- **L-120. For a new board, `kernel-pr-check` counts every message the
+  board inherits as new.** The base has no such DTB, so gs201.dtsi's four
+  undocumented compatibles failed lynx. *Check:* `dt-validate -m` a sibling
+  board on the same dtsi at the base and subtract its messages before calling
+  one new (the tool could do this itself). Extends L-30. *From:* kernel #43.
+- **L-121. When a test merge conflicts, check which tree it used before
+  asking anyone to rebase.** Our gs201 bindings branch "conflicted" with
+  zuma only on the unrelated local integration history; against
+  `github/omamobile` and #13 it merged cleanly. *Check:* `git merge-base` and
+  `git merge-tree` against the published branch and each open PR's head.
+  Extends L-104. *From:* kernel #13, round 10.
+- **L-122. "Same tree as before" is checked with the tree object.** `git
+  rev-parse A^{tree} B^{tree}` on the same base carries the earlier boot and
+  builds over to a reworded commit. Extends L-45 and L-84. *From:* kernel
+  #41, #35, round 10.
 
 ## Reviews and merging
 
@@ -378,7 +560,7 @@ never change, so reviews can cite them.
 
 - **L-43. Parallel reviewers use unique ref names.** They share the kernel
   clone, and one deleted another's `review/pr12` mid-review. *Check:* name
-  refs `review/prN-<round>` and pass commit ids to the gates. *From:* kernel
+  refs `review/prN-<round>` (now `review/prN-rR-<topic>`, L-127) and pass commit ids to the gates. *From:* kernel
   #12, round 3.
 - **L-44. A staged descriptor's refusal depends on the tooling PRs in
   flight.** Tegu added `SOC_COMPATIBLE` while #27 was about to make either
@@ -389,6 +571,39 @@ never change, so reviews can cite them.
 - **L-71. Our requests say which repository each piece goes in.** "A kernel
   PR … with an overlay that enables it" put a bring-up overlay in the kernel,
   against CONTRIBUTING §6.1 (extends L-31). *From:* issue #3 and kernel #32.
+- **L-104. Run `git merge-tree` across every pair of open PRs that touch the
+  same files,** one contributor's parallel PRs included, and give the merge
+  order in each review. Look for duplicate mechanisms too (#34's
+  `ro_gate_clks` beside #40's private read-only gates). Extends L-39 and
+  L-73. *From:* kernel #34 with #40, #37 with #39.
+- **L-105. When a contributor writes a private driver after we asked for
+  the common helper, find what pushed them off it** (here a PMU check that
+  can't defer inside the `__init` probe) and answer that, not only the
+  request again. *From:* kernel #40.
+- **L-123. A fix-up commit on a rebase-merged PR is folded in.** Kernel
+  PRs land commit by commit, so #34's watchdog commit would have landed with
+  the CG_VAL-only read (a bisect could stop there with the watchdogs
+  unowned), and #38's driver commit claiming temperature. *Check:* `git
+  range-diff` for a new commit that only changes lines an earlier commit of
+  the same PR added; read the earlier messages against the new head.
+  *From:* kernel #34, #35, #38, round 10.
+- **L-124. Before asking again, check whether the contributor's report
+  crossed our post.** The 23:11Z husky report answered round 9 before round 9
+  was posted. *Check:* compare comment times with our post time. *From:*
+  kernel #33, round 10.
+- **L-125. Check a whitespace nit by column, not by counting tabs.**
+  `expand` the hunk with its neighbours: `google,zumapro.h` gives every name
+  of that length two tabs. *From:* kernel #34, round 10 (withdrawn nit).
+- **L-126. A binding PR's SoC condition can reject another open board's
+  DTB without a textual conflict.** #13's `soc_compatible: false` for
+  non-zuma boards fails lynx (gs201 IPOP). *Check:* merge each open board PR
+  with each open binding PR on the same schema and run `CHECK_DTBS=y`.
+  Extends L-104. *From:* kernel #43 with #13 and #37.
+- **L-127. Parallel reviewers suffix refs with their topic, and delete only
+  refs they created.** In round 10 several used `review/prN-r10`, and one
+  deleted (then restored) refs another was using. *Check:*
+  `review/prN-r<round>-<topic>`; clean up from a list recorded at fetch time.
+  Extends L-43. *From:* round 10.
 
 ## Claims and evidence
 
@@ -430,6 +645,46 @@ never change, so reviews can cite them.
   *Check:* `curl -s '<url>?format=TEXT' | base64 -d | sed -n Np`. #29's was
   two lines off: cosmetic there, but a wrong commit or file wouldn't be.
   *From:* kernel #29, round 2.
+- **L-85. "Nothing else changed" needs a "before" from the same boot.** A
+  stop condition such as "no other rail changed" with only an after-read of
+  `regulator_summary` can't fail. *Check:* every "X didn't change" condition
+  has a snapshot step before the action and a diff after. *From:* #34,
+  round 2.
+- **L-86. When a revised driver keeps the protocol but changes the power
+  sequence, the earlier boot covers the protocol only.** Compare the trees
+  (L-69): a changed probe or remove order (rails, reset) needs its own boot,
+  even when the read path is identical. *From:* kernel #32, round 4.
+- **L-106. One PR's hardware evidence can land in another PR's commits.**
+  Husky test 23, the result #33 asked for, was in #23's BRINGUP-M1. *Check:*
+  read the companion PRs before saying "no evidence yet". Extends L-34.
+  *From:* kernel #33 with #23.
+- **L-107. A plan's claim about the DEVICES.md matrix is checked against
+  the open PRs that change that row.** Extends L-28 and L-44. *From:* #35
+  with #34.
+- **L-128. Read the host's USB log before interpreting a phone's
+  "re-enumeration".** The laptop's `journalctl -k` timestamps the gadget
+  leaving and arriving, and survives a phone whose RAM log is lost: husky
+  test 23's "re-enumerated after 22 s" was the boot itself. *From:* kernel
+  #33, round 10.
+- **L-129. A CRC "clear" covers only what that register checks.** FTM5's
+  CRC register is the base check; config and CX errors come as events after a
+  reset. *Check:* which check covers the calibration area, and whether it
+  needs a reset, before a plan says a read answers "is it valid". *From:*
+  #35, round 10.
+- **L-130. Before putting a bootloader requirement down to the SoC,
+  compare the reference phone's stock images.** Cheetah's stock vbmeta chains
+  `boot` and `init_boot` with the same rollback index and ABL build as lynx,
+  yet boots footerless images: lynx's AVB footers are its ABL's
+  configuration. *Check:* `avbtool info_image` on the stock vbmeta in
+  `~/android/reference` (read-only). *From:* #37.
+- **L-131. Evidence cites the tested file's blob id, not a commit id.**
+  `git rev-parse <commit>:<path>` survives the folds and rebases we ask for,
+  and ties an out-of-tree module to its source. Extends L-45. *From:* kernel
+  #38 with #39.
+- **L-132. A device can appear twice on DEVICES.md (matrix row and Wanted
+  list); an edit to one must agree with the other**, and the plain words that
+  say the evidence isn't public must survive. *Check:* `grep -n <codename>
+  docs/DEVICES.md`. Extends L-28, L-66 and L-107. *From:* #39.
 
 ## Corrections (where a review was wrong)
 
@@ -445,3 +700,16 @@ never change, so reviews can cite them.
   `DTB_OVERLAYS` enables it.** C-1's conclusion (no regulator driver, so no
   Linux cleanup of those LDOs) still stood then. *Lesson:* L-49. *From:*
   kernel #27.
+- **C-3 (2026-10-24). L-88 said husky's DWC3 cycle hung `device_shutdown`
+  under `reboot-to`; it didn't.** The laptop's log shows the gadget left at
+  the unbind and never returned: the phone froze at the bind, so the fallback
+  never ran (#23 tests 23-28). L-88's rule stands, but a freeze that stops
+  every CPU defeats every software dead-man, sysrq included. *Lesson:* for a
+  step that can freeze the SoC, only the buttons or a hardware watchdog left
+  unfed bring it back; the runbook says so and is run attended. *From:*
+  kernel #33, round 10.
+- **C-4 (2026-10-24). Round 9 told #35's author that LDO11M-LDO13M are CPU
+  cluster rails; LDO13M is the TPU rail** (`L13M_VDD_TPU_M`), and our wording
+  went into a commit message. *Lesson:* a fact we hand a contributor for a
+  commit needs the line-level source we'd ask of them. *From:* kernel #35,
+  round 10.
