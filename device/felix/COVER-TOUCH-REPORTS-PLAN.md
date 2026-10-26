@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Pixel Fold cover touch: reports
 
-Status, 2026-10-25. The report path is linux-omarchy-mobile#48, published head `08ec655ea`. The chip-id gate under it is linux-omarchy-mobile#32 and omarchy-mobile#34. Neither has merged. #48 stays a draft until #32 lands, and this plan merges after #34. The phone's last cover-touch boot is still release `7.3.0-rc6-omamobile-push1-g523924301fb3`. That commit only reads the CRC register. The later reads, the GPIO reset, the scan command, and the finger result were a module hand-loaded into that release, not a build of #48's head. Step 0 is against Google's felix driver at tag `android-14.0.0_r0.102`.
+Status, 2026-10-25. The report path is linux-omarchy-mobile#48, head `b2a37752b`. The chip-id gate under it is linux-omarchy-mobile#32 and omarchy-mobile#34. Neither has merged. #48 stays a draft until #32 lands, and this plan merges after #34. The phone's last cover-touch boot is still release `7.3.0-rc6-omamobile-push1-g523924301fb3`. That commit only reads the CRC register. The later reads, the GPIO reset, the scan command, and the finger result were a module hand-loaded into that release, not a build of #48's head. Step 0 is against Google's felix driver at tag `android-14.0.0_r0.102`.
 
 The power key is linux-omarchy-mobile#41. Touch in `docs/DEVICES.md` is WIP (cover chip id) from omarchy-mobile#34. Buttons stays `no` until the power-key notes merge.
 
@@ -42,6 +42,7 @@ In order:
 - [I] This tree has no Google touch offload. The report path to add later is the plain `input` calls above.
 - [V] `F/` board overlay, `st,fts` `st,max-coords` is `<0x437 0x82b>`. That is 1079 by 2091, the maximum coordinate, one less than the 1080 by 2092 size in the board file. It is not a different panel.
 - [V] `G/` same tag. `st,sensor_inverted_x` and `st,sensor_inverted_y` reorder heatmap and self-sense frames for touch offload (`fts.c:2580` and `:2685`). Pointer coordinates are reported raw and only clamped (`fts.c:2948`). Those properties are not `touchscreen-inverted-x` or `touchscreen-inverted-y`.
+- [V] `G/` same tag. After the CX poll finds nothing, `fts_fw_update` polls panel CRC types `0x22` and `0x23` (`fts.c:4293` through `:4304`, `ftsSoftware.h:460`). A hit selects panel init. A CX CRC hit selects full panel init under `COMPUTE_INIT_METHOD` (`fts.c:4307` through `:4321`). Felix does not set `st,skip-fpi-for-unset-mpflag` (`fts.c:5379`), so an MP flag other than `0xA5`, `0x5A`, or `0xDF` also selects full panel init, and a config AFE that differs from the panel AFE selects panel init (`fts.c:4330` through `:4361`).
 - [I] That driver delivers events through Google's touch interface, which this tree does not have. A mainline `input` device is a later revision of this plan.
 
 ## Design
@@ -52,18 +53,18 @@ Do not request `gpa6-7` in the same change that only reads the chip id. Do not p
 
 The firmware file named in the factory node is `F/` `firmware/ftm5_fw_f10_ext.ftb`. Do not vendor that blob. The terms above do not allow shipping it.
 
-The report path never writes or erases the controller's flash, never requests a reflash, and never runs a panel init or a full panel init. It never sends a CX tuning or save command, and it never writes the MP flag. Felix's driver defines `COMPUTE_INIT_METHOD`, so `fts_chip_initialization` can compute new CX and save it and the MP flag into the controller's flash without `flash_burn`. `fts_fw_update` selects that path on its own (`fts.c:4330` through `:4372`) when the AFE versions disagree, and also when the MP flag is not `A5`, `5A`, or `DF`. The firmware and the CX calibration live in that flash. A burn holds the core, unlocks and erases it page by page, and whether the panel-init and CX area survives depends on `keep_cx`. A bad or interrupted burn can lose the cover panel's factory calibration, and this tree has no way to restore it. A flash write is a separate decision, taken together. The published report path sends four SPI things: opcode `0xfb`, opcode `0xa7`, opcode `0x87`, and scan command `0xa0 0x00 0xff`. It toggles the reset GPIO once. It does not send opcode `0xfa` or a load command, and it does not request the interrupt. Probe fails, and does not scan or register an input device, when the CRC status is non-zero, the system-info header is not `a5 01`, controller-ready does not arrive, a CX or panel CRC event arrives, or the AFE bytes or MP flag are a combination stock would panel-init. The 2026-10-24 hand-load did not do that: `salixp_poll_cx()` returned 0 on a hit and the probe continued. That return is the review fix. It is in published head `08ec655ea` and has not been booted.
+The report path never writes or erases the controller's flash, never requests a reflash, and never runs a panel init or a full panel init. It never sends a CX tuning or save command, and it never writes the MP flag. Felix's driver defines `COMPUTE_INIT_METHOD`, so `fts_chip_initialization` can compute new CX and save it and the MP flag into the controller's flash without `flash_burn`. `fts_fw_update` selects that path on its own (`fts.c:4330` through `:4372`) when the AFE versions disagree, and also when the MP flag is not `A5`, `5A`, or `DF`. The firmware and the CX calibration live in that flash. A burn holds the core, unlocks and erases it page by page, and whether the panel-init and CX area survives depends on `keep_cx`. A bad or interrupted burn can lose the cover panel's factory calibration, and this tree has no way to restore it. A flash write is a separate decision, taken together. The published report path sends four SPI things: opcode `0xfb`, opcode `0xa7`, opcode `0x87`, and scan command `0xa0 0x00 0xff`. It toggles the reset GPIO once. It does not send opcode `0xfa` or a load command, and it does not request the interrupt. Probe fails, and does not scan or register an input device, when the CRC status is non-zero, the system-info header is not `a5 01`, controller-ready does not arrive, a CX or panel CRC event arrives, or the AFE bytes or MP flag are a combination stock would panel-init. The 2026-10-24 hand-load did not do that: `salixp_poll_cx()` returned 0 on a hit and the probe continued. That return is the review fix. It is in head `b2a37752b` and has not been booted. The same poll fails on a panel CRC event, which is the stock panel-init path above, not a second repair policy.
 
 ## What was built
 
-Nothing for reports. The chip-id reader and its overlay are the earlier pull requests.
+The report path is linux-omarchy-mobile#48. It has not been booted as a packed image. The chip-id reader and its overlay are the earlier pull requests.
 
 | Piece | Where | State |
 | --- | --- | --- |
 | Chip-id reader, node disabled | linux-omarchy-mobile#32 | open |
 | Chip-id plan, notes, blacklist | omarchy-mobile#34 | open |
-| Report path | linux-omarchy-mobile#48, head `08ec655ea` | open, draft until #32 |
-| Probe stop before a stock repair | linux-omarchy-mobile#48, head `08ec655ea` | not booted |
+| Report path | linux-omarchy-mobile#48, head `b2a37752b` | open, draft until #32 |
+| Probe stop before a stock repair | linux-omarchy-mobile#48, head `b2a37752b` | not booted |
 
 ## Risks
 
@@ -71,7 +72,7 @@ Requesting attention while it sits low storms the interrupt line. A guessed flas
 
 ## Runbook
 
-Steps 0 through 7 have run. Steps 3 through 7 were written afterwards, on 2026-10-24 at 16:19 -0400, in the commit that recorded the hand-loads. From here a new step is written here and agreed before it runs. Do not mark slot B successful. Do not request attention. Do not write the flash.
+Steps 0 through 7 have run. Steps 3 through 7 were written afterwards, on 2026-10-24 at 16:19 -0400, in the commit that recorded the hand-loads. Steps 8 and 9 are written and not agreed. From here a new step is written here and agreed before it runs. Do not mark slot B successful. Do not request attention in step 8. Do not write the flash.
 
 ### 0. Read the firmware hand-off
 
@@ -131,7 +132,7 @@ Passed as a hand-load on the already-running `523924301` boot, 2026-10-24. The r
 
 Passed as a hand-load on the already-running `523924301` boot, 2026-10-24. The runbook was written afterwards, 2026-10-24 16:19 -0400. Not a new image and not marked successful. `fts_fw_update` (`touch/ftm5/fts.c:4287`) calls `fts_system_reset` and polls `0xA0`, `0xA1`, `0xA5`, and `0xA6`. A hit is the flash path. On this board `fts_system_reset` toggles the reset GPIO and waits for controller-ready (`ftsCore.c:66`). It does not request attention.
 
-The hand-load logged the miss and returned 0, so probe continued to the scan command. That is not what this step claimed. The review fix fails probe, before the scan command and before an input device is registered, on a hit, on no controller-ready, and on a panel CRC event (`0x22` or `0x23`). That fix is in published head `08ec655ea` and has not been booted.
+The hand-load logged the miss and returned 0, so probe continued to the scan command. That is not what this step claimed. The review fix fails probe, before the scan command and before an input device is registered, on a hit, on no controller-ready, and on a panel CRC event (`0x22` or `0x23`). That fix is in head `b2a37752b` and has not been booted. Step 8 is that boot, and it does not request attention.
 
 **Expect / pass:** dmesg names whether any of those four events arrived within 100 ms of the reset. No event, and controller-ready, is a pass. An event fails probe and does not scan. No flash write. No attention request.
 
@@ -165,9 +166,27 @@ Passed as a hand-load on the already-running `523924301` boot, 2026-10-24, and l
 
 **Risk:** a 10 ms FIFO poll on a controller that is already scanning. This step does not request attention and does not write the flash.
 
-### 8. Request the attention line
+### 8. Boot the folded report path, no interrupt
 
-Not run. Written 2026-10-25, before any boot, for agreement first. Do not run this step until that agreement is in the review. The boot is a build of #48 head `08ec655ea`, packed by `bin/omamobile images` and written with `bin/omamobile push`. It is not a hand-loaded module and not a hand-edited DTB. `tools/phone-smoke` is the report. Slot B is not marked successful.
+Not run. Written 2026-10-25, before any boot, for agreement first. Do not run until that agreement is in the review. This step does not request `gpa6-7`. The boot is a packed build of head `b2a37752b`. It is not a hand-loaded module and not a hand-edited DTB. `tools/phone-smoke` is the report. Slot B is not marked successful.
+
+Build that head with an explicit worktree and output directory. For this pack only, set `DTB_OVERLAYS=cover-touch` in `device/felix/device.conf`, run `bin/omamobile images`, then remove that line. Do not commit it. The overlay is the one in omarchy-mobile#34, `device/felix/overlays/cover-touch.dtso`. It enables the disabled node. It does not set `regulator-always-on`. It is not a hand edit of the DTB.
+
+Write the packed images with `bin/omamobile push`. That writes slot B and reboots. Do not mark slot B successful. `omamobile-device-felix` does not mark a slot successful.
+
+After the phone is back, `uname -r` must be the release of that head. `salixp` stays blacklisted. The module that is loaded is the one `push` installed for that release, not a module built beside it. Arm a dead-man first: `systemd-run --unit=salixp-deadman --on-active=90` that unbinds `spi0.0` from `salixp`. Confirm over a fresh SSH login, then load, in order, the mailbox, the ACPM protocol, `sec-acpm`, and that release's `salixp`. Then stop the timer. If the confirmation does not arrive, the timer undoes the bind.
+
+**Expect / pass:** `tools/phone-smoke` passes. dmesg has chip id `36 40`, crc status `00`, sysinfo header `a5 01`, mp flag `a5`, controller-ready, no CX CRC event, and a sense echo. A finger produces an enter. No interrupt is requested. No flash write. `uname -r` matches the pushed release.
+
+**Stop:** attention is requested, the module loaded is not the one from that release, the DTB was hand-edited, the flash is written, any rail other than LDO25M and LDO26M gains a user, a UFS error handler, USB drops, the phone does not come back, or the dead-man fires. If ABL falls back to slot A, stop and take a fresh backup.
+
+**Rollback:** the dead-man unbinds `salixp`. Pack slot B again without `cover-touch` and reboot slot B. Do not mark slot B successful. Do not boot slot A.
+
+**Risk:** a GPIO reset and one scan command on the published driver, plus a slot B reboot. This step does not request attention. A controller stock would repair does not reach the scan command.
+
+### 9. Request the attention line
+
+Not run. Written 2026-10-25, before any boot, for agreement first. Do not run until that agreement is in the review. The code that requests `gpa6-7` is not in #48. This step does not name a head. The boot, when agreed, is a `bin/omamobile push` of the head that contains that request, plus `tools/phone-smoke`. It is not a module built beside another release.
 
 Before the module is loaded, arm a dead-man: `systemd-run --unit=salixp-deadman --on-active=90` that unbinds `salixp` and does not leave the IRQ requested. Confirm over a fresh SSH login, then stop the timer. If the confirmation does not arrive, the timer undoes the bind.
 
@@ -243,8 +262,8 @@ Masked status `00` is the low two bits of raw `c0` (`CRC_MASK` is `0x03`). Those
 
 ## Open questions
 
-- Step 5 showed no CX CRC event within 100 ms of controller-ready. The four types Google checks, `0xA0`, `0xA1`, `0xA5`, and `0xA6`, did not arrive. The hand-load returned 0 and continued, so that boot does not show the probe stop. What is still open is a boot of the review fix, which fails probe instead of scanning, and the panel CRC types `0x22` and `0x23`, which that boot did not poll.
-- The status event `43 05` was logged as type only. Google's handler logs `event[2]` through `event[7]`; `event[2]` of `0x01` is "Sense on Force cal". The review fix logs those bytes. It has not been booted, so this phone has not shown which force-calibration kind that event was.
-- Step 8, the attention line, is written and not agreed. It does not run until that agreement.
-- The hand-loaded module was `insmod`'d into the non-dirty `523924301` release after the mailbox, the ACPM protocol, and `sec-acpm`. Its blob was not recorded, so it is not known whether that file was published-head blob `2a479290`. Published head `08ec655ea` has `salixp.c` blob `a696e054`. The running release's own driver only reads the CRC register. The next boot is a build of that head, packed by `bin/omamobile images`, written with `bin/omamobile push`, and reported with `tools/phone-smoke`.
+- Step 5 showed no CX CRC event within 100 ms of controller-ready. The four types Google checks, `0xA0`, `0xA1`, `0xA5`, and `0xA6`, did not arrive. The hand-load returned 0 and continued, so that boot does not show the probe stop. The panel CRC types `0x22` and `0x23` did not arrive either. Step 8 is the boot of the code that fails probe on either, after the fold. This phone's header, MP flag, and AFE bytes do not take that path, so the stop is still a code fact, not a log line.
+- The status event `43 05` was logged as type only. Google's handler logs `event[2]` through `event[7]`; `event[2]` of `0x01` is "Sense on Force cal". The published driver logs those bytes. It has not been booted, so this phone has not shown which force-calibration kind that event was.
+- Step 8, the packed boot of head `b2a37752b`, is written and not agreed. It does not run until that agreement. Step 9, the attention line, is also written and not agreed. Its code is not in #48, so it does not name a head.
+- The hand-loaded module was `insmod`'d into the non-dirty `523924301` release after the mailbox, the ACPM protocol, and `sec-acpm`. Its blob was not recorded, so it is not known whether that file was the blob Derek asked about, `2a479290`. Head `b2a37752b` has `salixp.c` blob `9cfad57f`. The running release's own driver only reads the CRC register.
 - The inner panel stays on its own plan.
