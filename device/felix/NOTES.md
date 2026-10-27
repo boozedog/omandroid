@@ -10,6 +10,12 @@ Findings from real hardware, newest first. [BRINGUP-M1.md](BRINGUP-M1.md) is the
 - **What was on the panels.** Both simpledrm cards were connected. Hyprland listed the cover at 1080×2092 and the inner panel at 1840×2208, cover first, so the inner card was a second output rather than the splash. The session was running. This is not a brightness slider, a KMS mode, or DPMS.
 - **The refresh oneshot was still installed.** `omamobile-cover-rate.service` was enabled and ran after the init's pair. Its line was 124.0 Hz, underrun clear, DDI1 already selected. It is not the descriptor change.
 
+## 2026-10-27: slot A is the other Linux install
+
+- **Slot A is not GrapheneOS.** The 2026-10-13 note was true that day. Slot A is now another Omarchy install. A boot of it does not run Android, so it does not show a lock screen and does not offer to reset `userdata`.
+- **The step 8 reboot stayed on slot A.** `reboot-to` boots the current slot and does not switch slots. SSH came back. Nothing was loaded. The buttons entered fastboot. `fastboot --set-active=b` restored slot B's retries from 1 to 3. No second image write. `salixp` was loaded only after slot B was up. Slot B was not marked successful.
+- **Backup.** On 2026-10-27 the six partitions were compared read-only with the 2026-10-16 backup. `efs`, `efs_backup`, `modem_userdata`, and `persist` differ. `modem_a` and `modem_b` match. A fresh read-only backup taken the same day is the new baseline. The sums stay off the repository. This slot A boot does not run the modem stack, so it is not itself an Android rewrite. The compare does not say which earlier boot changed the four.
+
 ## 2026-10-26: the power key and the GPU in the published kernel
 
 - **Power key.** linux-omarchy-mobile#41 (merged) describes `gpa10-0` on `gpio-keys`, so the 2026-10-22 entry's "not described" no longer holds. On `7.3.0-rc6-omamobile-push1-g9860657fffb1`, slot B, not marked successful: event0 advertised `KEY_VOLUMEDOWN`, `KEY_VOLUMEUP` and `KEY_POWER`, a short press read code 116 down then up, logind reported `HandlePowerKey` and `HandlePowerKeyLongPress` as ignore (`omamobile-device-felix` 0.1.2), and the phone stayed up. A long press was not tried.
@@ -22,7 +28,7 @@ Findings from real hardware, newest first. [BRINGUP-M1.md](BRINGUP-M1.md) is the
 - **Rails.** With no consumer, S2MPG12 LDO25M (`vdd-outer-ts`) and LDO26M (`avdd-outer-ts`) read disabled at 1.8 V and 3.3 V. ABL leaves both off. On the unpublished boot an overlay held them on, and they then read enabled at 1800000 µV and 3300000 µV. On the #32 head the driver held each rail enabled at those voltages, min equal to max, with one user and no `regulator-always-on`.
 - **Chip id.** On both boots the cover controller answered `36 40`.
 - **Reset and attention.** On the unpublished boot, after the rails had settled, the reader was unloaded and both rails stayed enabled. Holding cover reset `gpp23-3` low for 20 ms and releasing it: attention `gpa6-7` was low while reset was held, high at the release read, and low at 20 ms, 100 ms, and 500 ms. Reset was left released. Cover panel reset `gpp23-0`, inner touch reset `gpp23-2`, and inner panel reset `gpa7-1` were not written. S2MPG13 was left alone.
-- **Backup.** The 2026-10-16 backup was checksum-verified when it was taken. Those checksums were not re-checked immediately before the first S2MPG12 regulator bind. The boots since then were slot B, and the slot was not marked successful. There is no record of a slot A boot since that backup.
+- **Backup.** The 2026-10-16 backup was checksum-verified when it was taken. Those checksums were not re-checked immediately before the first S2MPG12 regulator bind. The 2026-10-27 section is the later compare. The sentence that there had been no slot A boot since that backup was wrong.
 - **Not on by default.** linux-omarchy-mobile#32 adds the cover controller and leaves it disabled. `device/felix/overlays/cover-touch.dtso` enables that path and does not set `regulator-always-on`. The always-on overlay was unpublished bring-up and is not in this tree. The inner panel and its touch controller stay undescribed.
 
 ## 2026-10-22: volume keys and the hinge hall
@@ -42,7 +48,7 @@ The stock capture's build is `google/felix/felix:17/CP3A.261005.002.A1/202610060
 
 ## 2026-10-13: cover console
 
-- **Slot B boots folded.** USB networking and SSH at `root@172.16.42.1`. Both cluster watchdogs are stopped. Slot B is not marked successful. Slot A stays GrapheneOS.
+- **Slot B boots folded.** USB networking and SSH at `root@172.16.42.1`. Both cluster watchdogs are stopped. Slot B is not marked successful. Slot A was GrapheneOS on this date. The 2026-10-27 section is the current state.
 - **The cover console is the cover controller only.** ABL leaves DECON1 `TRIG_CON` (`0x1c241030`) at `0x3070`, which masks the hardware trigger, so the cover keeps the bootloader logo. Writing `0x3061` clears `HW_TRIG_MASK_DECON` and sets `HW_TRIG_EN`. That pair is `SIMPLEFB_TRIG_CON` in `device.conf`. The shared init writes it only when the board's first compatible string is this descriptor's `COMPATIBLE`, and the cover shows the Linux console. Kernel 7.3.0-rc6.
 - **DECON0 `TRIG_CON` (`0x1c240030`) is the inner panel on this phone.** On this date it was not written. The inner frame count stayed frozen, and the inner panel kept the bootloader logo, including while folded. The 2026-10-27 section is the later boot, which writes it on purpose. Do not reset the panel or program its DSI.
 - **The first-light board file** enables the USB controller and the cover framebuffer the bootloader is already scanning, and it leaves both panel nodes, both touch controllers, the GPU, and UFS disabled. That is kernel pull request #1.

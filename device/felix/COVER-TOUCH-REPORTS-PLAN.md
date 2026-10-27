@@ -1,9 +1,9 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Pixel Fold cover touch: reports
 
-Status, 2026-10-26. The report path is linux-omarchy-mobile#48, published head `aa42f8a8c`. The chip-id gate under it is linux-omarchy-mobile#32, still open, and omarchy-mobile#34, merged. #48 stays a draft until #32 lands. This plan can merge now that #34 has. Head `aa42f8a8c` fails probe on config CRC events `0x20` and `0x21` and on a missing scan echo. Its `salixp.c` blob is `c1752a85`. The review asked to fold that stop into the earlier report commit before #48 leaves draft, not before step 8. If that fold lands, step 8's identity is the blob, not a commit id that will change. The phone's last cover-touch boot is still release `7.3.0-rc6-omamobile-push1-g523924301fb3`. That commit only reads the CRC register. The later reads, the GPIO reset, the scan command, and the finger result were a module hand-loaded into that release, not a build of #48's head. Step 0 is against Google's felix driver at tag `android-14.0.0_r0.102`.
+Status, 2026-10-27. The report path is linux-omarchy-mobile#48, rebased head `0e8be406f`, out of draft. #32 and #41 have merged. `salixp.c` blob `c1752a85` is the stable name for the step 8 boot. That boot was packed release `7.3.0-rc6-omamobile-push1-gaa42f8a8c1bf`, the same tree as published head `aa42f8a8c` before the rebase. The rebase keeps the blob. Head `0e8be406f` fails probe on config CRC events `0x20` and `0x21` and on a missing scan echo. Step 0 is against Google's felix driver at tag `android-14.0.0_r0.102`.
 
-The power key is linux-omarchy-mobile#41. Touch in `docs/DEVICES.md` is WIP (cover chip id) from omarchy-mobile#34. Buttons stays `no` until the power-key notes merge.
+The power key is linux-omarchy-mobile#41, merged. Touch in `docs/DEVICES.md` is WIP (cover chip id). Buttons is works.
 
 ## Goal
 
@@ -56,26 +56,26 @@ Do not request `gpa6-7` in the same change that only reads the chip id. Do not p
 
 The firmware file named in the factory node is `F/` `firmware/ftm5_fw_f10_ext.ftb`. Do not vendor that blob. The terms above do not allow shipping it.
 
-The report path never writes or erases the controller's flash, never requests a reflash, and never runs a panel init or a full panel init. It never sends a CX tuning or save command, and it never writes the MP flag. Felix's driver defines `COMPUTE_INIT_METHOD`, so `fts_chip_initialization` can compute new CX and save it and the MP flag into the controller's flash without `flash_burn`. `fts_fw_update` selects that path on its own (`fts.c:4330` through `:4372`) when the AFE versions disagree, and also when the MP flag is not `A5`, `5A`, or `DF`. The firmware and the CX calibration live in that flash. A burn holds the core, unlocks and erases it page by page, and whether the panel-init and CX area survives depends on `keep_cx`. A bad or interrupted burn can lose the cover panel's factory calibration, and this tree has no way to restore it. A flash write is a separate decision, taken together. The published report path sends four SPI things: opcode `0xfb`, opcode `0xa7`, opcode `0x87`, and scan command `0xa0 0x00 0xff`. It toggles the reset GPIO once. It does not send opcode `0xfa` or a load command, and it does not request the interrupt. Probe fails, and does not scan or register an input device, when the CRC status is non-zero, the system-info header is not `a5 01`, controller-ready does not arrive, a config CRC event (`0x20` or `0x21`), a CX or panel CRC event arrives, the scan echo does not arrive, or the AFE bytes or MP flag are a combination stock would panel-init. The 2026-10-24 hand-load did not do that: `salixp_poll_cx()` returned 0 on a hit and the probe continued. The CX, panel, header, CRC-status, and AFE stops are in `b2a37752b`, an ancestor of published head `aa42f8a8c`. The config CRC stop and the missing-echo stop are in `aa42f8a8c`. Neither has been booted. No controller-ready is not the full panel init. Stock skips init because the state is unknown. A missing echo fails probe after one scan command. It does not send a second one.
+The report path never writes or erases the controller's flash, never requests a reflash, and never runs a panel init or a full panel init. It never sends a CX tuning or save command, and it never writes the MP flag. Felix's driver defines `COMPUTE_INIT_METHOD`, so `fts_chip_initialization` can compute new CX and save it and the MP flag into the controller's flash without `flash_burn`. `fts_fw_update` selects that path on its own (`fts.c:4330` through `:4372`) when the AFE versions disagree, and also when the MP flag is not `A5`, `5A`, or `DF`. The firmware and the CX calibration live in that flash. A burn holds the core, unlocks and erases it page by page, and whether the panel-init and CX area survives depends on `keep_cx`. A bad or interrupted burn can lose the cover panel's factory calibration, and this tree has no way to restore it. A flash write is a separate decision, taken together. The published report path sends four SPI things: opcode `0xfb`, opcode `0xa7`, opcode `0x87`, and scan command `0xa0 0x00 0xff`. It toggles the reset GPIO once. It does not send opcode `0xfa` or a load command, and it does not request the interrupt. Probe fails, and does not scan or register an input device, when the CRC status is non-zero, the system-info header is not `a5 01`, controller-ready does not arrive, a config CRC event (`0x20` or `0x21`), a CX or panel CRC event arrives, the scan echo does not arrive, or the AFE bytes or MP flag are a combination stock would panel-init. The 2026-10-24 hand-load did not do that: `salixp_poll_cx()` returned 0 on a hit and the probe continued. The CX, panel, header, CRC-status, and AFE stops are in `b2a37752b`, an ancestor of the step 8 boot. The config CRC stop and the missing-echo stop are in that boot, `salixp.c` blob `c1752a85`. No controller-ready is not the full panel init. Stock skips init because the state is unknown. A missing echo fails probe after one scan command. It does not send a second one.
 
 ## What was built
 
-The report path is linux-omarchy-mobile#48. It has not been booted as a packed image. The chip-id reader and its overlay are the earlier pull requests.
+The report path is linux-omarchy-mobile#48. Step 8 booted it as a packed image. The chip-id reader and its overlay are the earlier pull requests.
 
 | Piece | Where | State |
 | --- | --- | --- |
-| Chip-id reader, node disabled | linux-omarchy-mobile#32 | open |
+| Chip-id reader, node disabled | linux-omarchy-mobile#32 | merged |
 | Chip-id plan, notes, blacklist | omarchy-mobile#34 | merged |
-| Report path | linux-omarchy-mobile#48, head `aa42f8a8c` | open, draft until #32 |
-| Probe stop before a stock repair | published head `aa42f8a8c`, `salixp.c` blob `c1752a85` | not booted |
+| Report path | linux-omarchy-mobile#48, head `0e8be406f` | open, rebased |
+| Probe stop before a stock repair | `salixp.c` blob `c1752a85`, step 8 release `7.3.0-rc6-omamobile-push1-gaa42f8a8c1bf` | booted, slot B not marked successful |
 
 ## Risks
 
-Requesting attention while it sits low storms the interrupt line. A guessed flash program can leave the cover controller without firmware. Enabling the main PMIC to reach LDO25M and LDO26M is the same risk as the chip-id gate: other rails register, and a slot A boot would rewrite the calibration partitions.
+Requesting attention while it sits low storms the interrupt line. A guessed flash program can leave the cover controller without firmware. Enabling the main PMIC to reach LDO25M and LDO26M is the same risk as the chip-id gate: other rails register, and an Android slot A boot would rewrite the calibration partitions. A Linux slot A boot does not run the modem stack. The 2026-10-27 compare is the baseline before step 9.
 
 ## Runbook
 
-Steps 0 through 7 have run. Steps 3 through 7 were written afterwards, on 2026-10-24 at 16:19 -0400, in the commit that recorded the hand-loads. Step 8's safety net was rewritten on 2026-10-26 for the review's two points and has not run. Step 9 is written and not agreed. From here a new step is written here and agreed before it runs. Do not mark slot B successful. Do not request attention in step 8. Do not write the flash.
+Steps 0 through 7 have run. Steps 3 through 7 were written afterwards, on 2026-10-24 at 16:19 -0400, in the commit that recorded the hand-loads. Step 8 has run. Step 9 is written and not agreed. From here a new step is written here and agreed before it runs. Do not mark slot B successful. Do not request attention in step 8. Do not write the flash.
 
 ### 0. Read the firmware hand-off
 
@@ -135,7 +135,7 @@ Passed as a hand-load on the already-running `523924301` boot, 2026-10-24. The r
 
 Passed as a hand-load on the already-running `523924301` boot, 2026-10-24. The runbook was written afterwards, 2026-10-24 16:19 -0400. Not a new image and not marked successful. `fts_fw_update` (`touch/ftm5/fts.c:4287`) calls `fts_system_reset` and polls `0xA0`, `0xA1`, `0xA5`, and `0xA6`. A hit is the flash path. On this board `fts_system_reset` toggles the reset GPIO and waits for controller-ready (`ftsCore.c:66`). It does not request attention.
 
-The hand-load logged the miss and returned 0, so probe continued to the scan command. That is not what this step claimed. The review fix fails probe, before the scan command and before an input device is registered, on a hit, on no controller-ready, and on a panel CRC event (`0x22` or `0x23`). That fix is in `b2a37752b`, an ancestor of published head `aa42f8a8c`, and has not been booted. Step 8 is the boot of `aa42f8a8c`, and it does not request attention.
+The hand-load logged the miss and returned 0, so probe continued to the scan command. That is not what this step claimed. The review fix fails probe, before the scan command and before an input device is registered, on a hit, on no controller-ready, and on a panel CRC event (`0x22` or `0x23`). That fix is in the step 8 boot, `salixp.c` blob `c1752a85`. Step 8 does not request attention.
 
 **Expect / pass:** dmesg names whether any of those four events arrived within 100 ms of the reset. No event, and controller-ready, is a pass. An event fails probe and does not scan. No flash write. No attention request.
 
@@ -175,9 +175,9 @@ Passed, 2026-10-26. See Results. This step is attended. It does not request `gpa
 
 Build that head with an explicit worktree and output directory. For this pack only, set `DTB_OVERLAYS=cover-touch` in `device/felix/device.conf`, run `bin/omamobile images`, then remove that line. Do not commit it. The overlay is the one in omarchy-mobile#34, `device/felix/overlays/cover-touch.dtso`. It enables the disabled node. It does not set `regulator-always-on`. It is not a hand edit of the DTB.
 
-Write the packed images with `bin/omamobile push`. That writes slot B and reboots. Do not mark slot B successful. `omamobile-device-felix` does not mark a slot successful.
+Write the packed images with `bin/omamobile push`. That writes slot B and reboots. Do not mark slot B successful. `omamobile-device-felix` does not mark a slot successful. Before that reboot, read `androidboot.slot_suffix` from `/proc/bootconfig`. `reboot-to` boots the current slot and does not switch slots. If the current slot is not B, do not reboot. If the phone comes back on A, do not load drivers. Enter fastboot with the buttons and run `fastboot --set-active=b`. That restores slot B's retry count. It does not mark the slot successful, and it does not need a second image write unless the images themselves need rewriting.
 
-After the phone is back, `uname -r` must be the release of that head. `salixp` stays blacklisted. The module that is loaded is the one `push` installed for that release, not a module built beside it. Start a kmsg stream to the laptop first: `tools/phone-ssh 'dmesg -w' > logs/felix-cover-touch-step8-$(date +%s).log &`. In that stream, both cluster watchdogs must already be inactive (`s3c2410_wdt`, "watchdog inactive, reset disabled"). If either is still running, stop. That line shows `s3c2410_wdt` has taken ABL's watchdogs and stopped them (`tmr_atboot` is 0). It is not a reset. Nothing else feeds `/dev/watchdog0`, and the bootargs have only `panic=10`, so a hang that does not panic lasts until the buttons unless a feeder is armed.
+After the phone is back, `uname -r` must be the release of that head. The slot must be B. `salixp` stays blacklisted. The module that is loaded is the one `push` installed for that release, not a module built beside it. Start a kmsg stream to the laptop first: `tools/phone-ssh 'dmesg -w' > logs/felix-cover-touch-step8-$(date +%s).log &`. In that stream, both cluster watchdogs must already be inactive (`s3c2410_wdt`, "watchdog inactive, reset disabled"). If either is still running, stop. That line shows `s3c2410_wdt` has taken ABL's watchdogs and stopped them (`tmr_atboot` is 0). It is not a reset. Nothing else feeds `/dev/watchdog0`, and the bootargs have only `panic=10`, so a hang that does not panic lasts until the buttons unless a feeder is armed.
 
 Load the mailbox, the ACPM protocol, and `sec-acpm` before any timer. Those three are not under the dead-man: four loads plus the confirmation do not fit in 90 s, and a slow run must not unbind a driver that already probed. Save `regulator_summary` after `sec-acpm` and before `salixp`. A snapshot taken before `sec-acpm` makes every S2MPG12 rail look new. This one is the bind's before.
 
@@ -197,7 +197,7 @@ Diff `regulator_summary` after the `salixp` load against the snapshot taken afte
 
 ### 9. Request the attention line
 
-Not run. Written 2026-10-25, before any boot, for agreement first. Do not run until that agreement is in the review. The code that requests `gpa6-7` is not in #48. This step does not name a head. The boot, when agreed, is a `bin/omamobile push` of the head that contains that request, plus `tools/phone-smoke`. It is not a module built beside another release.
+Not run. Written 2026-10-25, before any boot, for agreement first. Do not run until that agreement is in the review. The code that requests `gpa6-7` is not in #48. This step does not name a head. The boot, when agreed, is a `bin/omamobile push` of the head that contains that request, plus `tools/phone-smoke`. It is not a module built beside another release. The same slot rule as step 8 applies: read `androidboot.slot_suffix` from `/proc/bootconfig` before the reboot, and do not reboot unless it is B. If the phone comes back on A, do not load drivers. Enter fastboot with the buttons and run `fastboot --set-active=b`. That restores the retry count and does not mark the slot successful.
 
 Start a kmsg stream to the laptop first, the same way as step 8, and confirm both cluster watchdogs are inactive before any load. That check is not a reset. Load the mailbox, the ACPM protocol, and `sec-acpm` before any timer, if they are not already loaded from step 8. Save `regulator_summary` after `sec-acpm` and before the attention module. Arm the same feeder as step 8. If it does not arm, stop. Then arm a dead-man: `systemd-run --unit=salixp-deadman --on-active=90` that unbinds `salixp` and does not leave the IRQ requested. Load the module that requests attention. Confirm with `tools/phone-ssh --fresh true`, and only then stop the dead-man and magic-close the feeder. If the confirmation does not arrive, leave both armed. An unbind cannot undo a hang. The feeder is the reset if the phone stops answering. The step is attended. The log stream is the record of that.
 
@@ -213,7 +213,7 @@ The driver may request `gpa6-7` only after controller-ready, and only level-low,
 
 ## Results
 
-2026-10-26. Step 8. Slot B boot of published head `aa42f8a8c`, `salixp.c` blob `c1752a85`, release `7.3.0-rc6-omamobile-push1-gaa42f8a8c1bf`. Not marked successful. The first reboot stayed on slot A. Slot B was selected and rebooted without a second write. `salixp` stayed blacklisted and was loaded from that release after the mailbox, the ACPM protocol, and `sec-acpm`. Both cluster watchdogs were already inactive. The feeder and the 90 s dead-man were armed before the load, a new SSH login answered, and both were then stopped. The dead-man did not fire.
+2026-10-26. Step 8. Slot B boot of published head `aa42f8a8c`, `salixp.c` blob `c1752a85`, release `7.3.0-rc6-omamobile-push1-gaa42f8a8c1bf`. Not marked successful. The first reboot stayed on slot A because `reboot-to` boots the current slot and does not switch slots. Slot A is another Omarchy install, not GrapheneOS. SSH came back. Nothing was loaded. There was no lock screen and no offer to reset `userdata`. The buttons entered fastboot. `fastboot --set-active=b` restored the retries from 1 to 3. No second image write. `salixp` stayed blacklisted and was loaded from that release after the mailbox, the ACPM protocol, and `sec-acpm`. Both cluster watchdogs were already inactive. The feeder and the 90 s dead-man were armed before the load, a new SSH login answered, and both were then stopped. The dead-man did not fire.
 
 ```
 salixp spi0.0: chip id 36 40
@@ -227,7 +227,24 @@ salixp spi0.0: sense echo yes events 2
 salixp spi0.0: touch event 13 slot 0
 ```
 
-Controller-ready arrived. No config CRC event, no CX CRC event, and no panel CRC event. The sense echo arrived. A finger produced an enter and motion on slot 0 while Hyprland had the device open. The log stops after eight events. No `salixp` interrupt. No flash write. No UFS error-handler line. `vdd-outer-ts` and `avdd-outer-ts` each went from zero users to one (`spi0.0-vdd`, `spi0.0-avdd`). No other rail gained a user. `tools/phone-smoke` passed the required checks, including the session, after Hyprland and quickshell were started by hand on the cover framebuffer. The GPU render node was panthor. The GPU cap stayed 0. The inner panel was not programmed. Slot B was not marked successful.
+Controller-ready arrived. No config CRC event, no CX CRC event, and no panel CRC event. The sense echo arrived. A finger produced an enter and motion on slot 0 while Hyprland had the device open. The log stops after eight events. No `salixp` interrupt. No flash write. No UFS error-handler line. `vdd-outer-ts` and `avdd-outer-ts` each went from zero users to one (`spi0.0-vdd`, `spi0.0-avdd`). No other rail gained a user. `tools/phone-smoke` passed the required checks, including the session, after Hyprland and quickshell were started by hand on the cover framebuffer. The GPU render node was panthor. The GPU cap stayed 0. The inner panel was not programmed. Slot B was not marked successful. The step 8 table was not saved. A later read-only run of the same release, with `salixp` not loaded, is below. Touch is absent in that run because the module was not loaded. The slot was B.
+
+```
+boot (required)          skip   no slot on the command line
+storage guard (required) ok     only userdata and slot B boot images writable
+root (required)          ok     ext4 on userdata
+kernel health (required) ok     no oops or BUG
+systemd units            ok     none failed
+USB gadget (required)    ok
+display                  ok     1080x2092, connected
+GPU                      ok     panthor
+session (required)       ok     Hyprland and the shell
+touch                    not ok no multitouch device (module not loaded)
+buttons                  ok     gpio-keys
+Wi-Fi, Bluetooth, battery, sound, sensors, cameras  skip
+```
+
+On 2026-10-27 the six partitions were compared read-only with the 2026-10-16 backup. `efs`, `efs_backup`, `modem_userdata`, and `persist` differ. `modem_a` and `modem_b` match. A fresh read-only backup taken the same day is the new baseline. The sums stay off the repository. The cover refresh-rate oneshot does not reboot the phone and does not change slots. The only slot A landing in step 8 was the `push` reboot above.
 
 2026-10-24. Fourth hand-load on the same boot. The scan command was written. The hardware-register preamble was not. No flash write. No interrupt request.
 
