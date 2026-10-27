@@ -286,12 +286,14 @@ initramfs_config() {
     [[ $DEV_INITRAMFS_FB_WAIT == 1 ]] || die "INITRAMFS_FB_WAIT must be 1 or absent"
   fi
   if [[ -n ${DEV_SIMPLEFB_TRIG_CON:-} ]]; then
-    local line
-    while IFS= read -r line; do
-      [[ -z $line ]] && continue
-      [[ $line =~ ^0x[0-9a-fA-F]+[[:space:]]+0x[0-9a-fA-F]+$ ]] \
-        || die "SIMPLEFB_TRIG_CON must be \"0xADDR 0xVALUE\" lines"
-    done <<< "$DEV_SIMPLEFB_TRIG_CON"
+    local rest=$DEV_SIMPLEFB_TRIG_CON trig_pairs=()
+    while [[ -n $rest ]]; do
+      [[ $rest =~ ^(0x[0-9a-fA-F]+)[[:space:]]+(0x[0-9a-fA-F]+)[[:space:]]*(.*)$ ]] \
+        || die "SIMPLEFB_TRIG_CON must be \"0xADDR 0xVALUE\" pairs"
+      trig_pairs+=("${BASH_REMATCH[1]} ${BASH_REMATCH[2]}")
+      rest=${BASH_REMATCH[3]}
+    done
+    DEV_SIMPLEFB_TRIG_LINES=$(printf '%s\n' "${trig_pairs[@]}")
   fi
   if [[ -n ${DEV_BRINGUP_PROBE:-} ]]; then
     [[ $DEV_BRINGUP_PROBE == 1 ]] || die "BRINGUP_PROBE must be 1 or absent"
@@ -328,7 +330,7 @@ initramfs_config() {
     : > "$etc/omamobile-fb-wait"
   fi
   if [[ -n ${DEV_SIMPLEFB_TRIG_CON:-} ]]; then
-    printf '%s\n' "$DEV_SIMPLEFB_TRIG_CON" > "$etc/omamobile-simplefb-trig"
+    printf '%s\n' "$DEV_SIMPLEFB_TRIG_LINES" > "$etc/omamobile-simplefb-trig"
   fi
   # DPP and watchdog reads. Off unless the descriptor asks, and the init
   # still refuses them when the board does not match COMPATIBLE.
