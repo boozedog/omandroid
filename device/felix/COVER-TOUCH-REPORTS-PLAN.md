@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Pixel Fold cover touch: reports
 
-Status, 2026-10-27. The report path is linux-omarchy-mobile#48, rebased head `0e8be406f`, out of draft. #32 and #41 have merged. `salixp.c` blob `c1752a85` is the stable name for the step 8 boot. That boot was packed release `7.3.0-rc6-omamobile-push1-gaa42f8a8c1bf`, the same tree as published head `aa42f8a8c` before the rebase. The rebase keeps the blob. Head `0e8be406f` fails probe on config CRC events `0x20` and `0x21` and on a missing scan echo. Step 0 is against Google's felix driver at tag `android-14.0.0_r0.102`.
+Status, 2026-10-27. The report path is linux-omarchy-mobile#48, merged, head `0e8be406f`. #32 and #41 have merged. `salixp.c` blob `c1752a85` is the stable name for the step 8 boot. That boot was packed release `7.3.0-rc6-omamobile-push1-gaa42f8a8c1bf`, the same tree as published head `aa42f8a8c` before the rebase. The rebase keeps the blob. Head `0e8be406f` fails probe on config CRC events `0x20` and `0x21` and on a missing scan echo. Step 0 is against Google's felix driver at tag `android-14.0.0_r0.102`.
 
 The power key is linux-omarchy-mobile#41, merged. Touch in `docs/DEVICES.md` is WIP (cover chip id). Buttons is works.
 
@@ -66,12 +66,14 @@ The report path is linux-omarchy-mobile#48. Step 8 booted it as a packed image. 
 | --- | --- | --- |
 | Chip-id reader, node disabled | linux-omarchy-mobile#32 | merged |
 | Chip-id plan, notes, blacklist | omarchy-mobile#34 | merged |
-| Report path | linux-omarchy-mobile#48, head `0e8be406f` | open, rebased |
+| Report path | linux-omarchy-mobile#48, head `0e8be406f` | merged |
 | Probe stop before a stock repair | `salixp.c` blob `c1752a85`, step 8 release `7.3.0-rc6-omamobile-push1-gaa42f8a8c1bf` | booted, slot B not marked successful |
 
 ## Risks
 
-Requesting attention while it sits low storms the interrupt line. A guessed flash program can leave the cover controller without firmware. Enabling the main PMIC to reach LDO25M and LDO26M is the same risk as the chip-id gate: other rails register, and an Android slot A boot would rewrite the calibration partitions. A Linux slot A boot does not run the modem stack. The 2026-10-27 compare is the baseline before step 9.
+Requesting attention while it sits low storms the interrupt line. A guessed flash program can leave the cover controller without firmware. Enabling the main PMIC to reach LDO25M and LDO26M is the same risk as the chip-id gate: other rails register, and an Android slot A boot would rewrite the calibration partitions.
+
+Slot A was rewritten on purpose to another Omarchy Mobile test build. The date, the tool, which of `boot_a`, `init_boot_a`, `vendor_boot_a`, `vendor_kernel_boot_a` and `dtbo_a` were written, and whether `vbmeta` was touched, are not recorded. Neither slot holds Android, so there is no fallback. The way back is fastboot from the buttons and the factory image: the build the 2026-10-20 capture names, or a newer one, never an older one. The 2026-10-27 copy is not a baseline. It is the current contents, and the cause of the change is unknown. The 2026-10-16 set stays beside it. The baseline for any later PMIC step is the backup taken after stock's first boot on slot A.
 
 ## Runbook
 
@@ -195,9 +197,27 @@ Diff `regulator_summary` after the `salixp` load against the snapshot taken afte
 
 **Risk:** a GPIO reset and one scan command on the driver that contains the config CRC stop, plus a slot B reboot, plus a watchdog that is armed only for this load. This step does not request attention. A controller stock would repair, including on a config CRC event, does not reach the scan command. A missing echo does not register an input device.
 
+### 8a. Restore stock Android on slot A
+
+Not run. Written 2026-10-27 for agreement first. This is a slot A write, outside everything the tools allow. Do not run it until it is agreed in this review.
+
+The image is factory build CP3A.261005.002.A1, the build the 2026-10-20 capture names, or a newer factory build, never an older one. Before any write, `fastboot getvar` must show product `felix` and an unlocked bootloader, and `version-bootloader` and `version-baseband` must match that image, or the image must be newer. The serial is checked there and is not written in this file.
+
+Write only `boot_a`, `init_boot_a`, `vendor_boot_a`, `vendor_kernel_boot_a` and `dtbo_a`, each with that suffix. Do not write the bootloader, the radio, `vbmeta`, `userdata`, `efs`, `persist`, `modem_userdata`, `modem_a`, `modem_b`, `devinfo`, or any slot B image. Do not run an unsuffixed `fastboot flash`. Do not relock. Keep `userdata`. Decline a wipe. Stop if Android or the tool offers to format it.
+
+Then `fastboot --set-active=a` and boot, attended. After that first stock boot, take a fresh read-only backup of `efs`, `efs_backup`, `modem_userdata` and `persist`. That copy is the baseline for step 9. Then `fastboot --set-active=b`. If the phone comes back on A, do not load drivers.
+
+**Expect / pass:** slot A boots that factory build, `userdata` is still the Linux root, the backup above exists, and slot B is current again.
+
+**Stop:** the product is not `felix`, the bootloader is locked, the image is older than the capture, any forbidden partition would be written, or a wipe is offered.
+
+**Rollback:** `fastboot --set-active=b` from the buttons. Do not mark slot B successful.
+
+**Risk:** a slot A write the tools do not perform, and an Android boot that rewrites the calibration partitions. That rewrite is why the backup comes after the boot, not before.
+
 ### 9. Request the attention line
 
-Not run. Written 2026-10-25, before any boot, for agreement first. Do not run until that agreement is in the review. The code that requests `gpa6-7` is not in #48. This step does not name a head. The boot, when agreed, is a `bin/omamobile push` of the head that contains that request, plus `tools/phone-smoke`. It is not a module built beside another release. The same slot rule as step 8 applies: read `androidboot.slot_suffix` from `/proc/bootconfig` before the reboot, and do not reboot unless it is B. If the phone comes back on A, do not load drivers. Enter fastboot with the buttons and run `fastboot --set-active=b`. That restores the retry count and does not mark the slot successful.
+Not run. Held. Not before stock is back on slot A and a fresh backup is taken after that boot. Written 2026-10-25, before any boot, for agreement first. Do not run until that agreement is in the review. The cover refresh oneshot is still installed. This step either disables it for that boot or lists it as the second change. The code that requests `gpa6-7` is not in #48. This step does not name a head. The boot, when agreed, is a `bin/omamobile push` of the head that contains that request, plus `tools/phone-smoke`. It is not a module built beside another release. The same slot rule as step 8 applies: read `androidboot.slot_suffix` from `/proc/bootconfig` before the reboot, and do not reboot unless it is B. If the phone comes back on A, do not load drivers. Enter fastboot with the buttons and run `fastboot --set-active=b`. That restores the retry count and does not mark the slot successful.
 
 Start a kmsg stream to the laptop first, the same way as step 8, and confirm both cluster watchdogs are inactive before any load. That check is not a reset. Load the mailbox, the ACPM protocol, and `sec-acpm` before any timer, if they are not already loaded from step 8. Save `regulator_summary` after `sec-acpm` and before the attention module. Arm the same feeder as step 8. If it does not arm, stop. Then arm a dead-man: `systemd-run --unit=salixp-deadman --on-active=90` that unbinds `salixp` and does not leave the IRQ requested. Load the module that requests attention. Confirm with `tools/phone-ssh --fresh true`, and only then stop the dead-man and magic-close the feeder. If the confirmation does not arrive, leave both armed. An unbind cannot undo a hang. The feeder is the reset if the phone stops answering. The step is attended. The log stream is the record of that.
 
@@ -244,7 +264,7 @@ buttons                  ok     gpio-keys
 Wi-Fi, Bluetooth, battery, sound, sensors, cameras  skip
 ```
 
-On 2026-10-27 the six partitions were compared read-only with the 2026-10-16 backup. `efs`, `efs_backup`, `modem_userdata`, and `persist` differ. `modem_a` and `modem_b` match. A fresh read-only backup taken the same day is the new baseline. The sums stay off the repository. The cover refresh-rate oneshot does not reboot the phone and does not change slots. The only slot A landing in step 8 was the `push` reboot above.
+On 2026-10-27 the six partitions were compared read-only with the 2026-10-16 backup. `efs`, `efs_backup`, `modem_userdata`, and `persist` differ. `modem_a` and `modem_b` match. No boot list exists between those two copies, so no Android boot can be named and a write from Linux cannot be ruled out. The 2026-10-27 copy is the current contents, cause of the change unknown. It is not a baseline. The 2026-10-16 set stays beside it. `devinfo` was in the 2026-10-16 set and was not copied on 2026-10-27, so it was not compared. It is expected to differ, because `set-active` and the retry counters write it. The sums stay off the repository. The cover refresh-rate oneshot does not reboot the phone and does not change slots. It is still installed. The only slot A landing in step 8 was the `push` reboot above. The journal has no slot field. The boot between the previous session and the step 8 `salixp` boot is the landing: kernel `7.3.0-rc6-omamobile-push1-g223035c3541c-dirty`, not the images just written to slot B, no `salixp`, and SSH. Its initramfs ran the storage guard. `efs`, `efs_backup`, `modem_userdata` and `persist` were set read-only. It is an initramfs from this repository, so that landing is not the Linux write that cannot be ruled out.
 
 2026-10-24. Fourth hand-load on the same boot. The scan command was written. The hardware-register preamble was not. No flash write. No interrupt request.
 
