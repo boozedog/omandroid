@@ -73,7 +73,7 @@ The report path is linux-omarchy-mobile#48. Step 8 booted it as a packed image. 
 
 Requesting attention while it sits low storms the interrupt line. A guessed flash program can leave the cover controller without firmware. Enabling the main PMIC to reach LDO25M and LDO26M is the same risk as the chip-id gate: other rails register, and an Android slot A boot would rewrite the calibration partitions.
 
-Slot A was rewritten on purpose to another Omarchy Mobile test build. The date, the tool, which of `boot_a`, `init_boot_a`, `vendor_boot_a`, `vendor_kernel_boot_a` and `dtbo_a` were written, and whether `vbmeta` was touched, are not recorded. `super`'s slot A has not been read. On 2026-10-22 slot A was GrapheneOS, and the later rewrite does not say it touched `super`. Neither slot holds Android, so there is no fallback. The way back is fastboot from the buttons and step 8a, which has not been agreed. The 2026-10-27 copy is not a baseline. It is the current contents, and the cause of the change is unknown. The 2026-10-16 set stays beside it. The baseline for any later PMIC step is the backup taken after the return to slot B from stock's first boot on slot A.
+Slot A was rewritten on purpose to another Omarchy Mobile test build. The date, the tool, which of `boot_a`, `init_boot_a`, `vendor_boot_a`, `vendor_kernel_boot_a` and `dtbo_a` were written, and whether `vbmeta` was touched, are not recorded. `super`'s slot A has not been read. On 2026-10-22 slot A was GrapheneOS, and the later rewrite does not say it touched `super`. Neither slot holds Android, so there is no fallback. The way back is fastboot from the buttons and step 8a, agreed in this review on 2026-10-27. The 2026-10-27 copy is not a baseline. It is the current contents, and the cause of the change is unknown. The 2026-10-16 set stays beside it. The baseline for any later PMIC step is the backup taken after the return to slot B from stock's first boot on slot A.
 
 ## Runbook
 
@@ -199,7 +199,7 @@ Diff `regulator_summary` after the `salixp` load against the snapshot taken afte
 
 ### 8a. Restore stock Android on slot A
 
-Not run. Written 2026-10-27 for agreement first, and revised the same day from the review. This is a slot A write, outside everything the tools allow. It is a named, one-time exception to CONTRIBUTING.md §3.1 for this phone, run by hand. It does not extend to a tool or to any other device. Do not run it until it is agreed in this review. The command list below is the dry run.
+Not run. Agreed in this review on 2026-10-27. Written that day, and revised the same day from the review. This is a slot A write, outside everything the tools allow. It is a named, one-time exception to CONTRIBUTING.md §3.1 for this phone, run by hand. It does not extend to a tool or to any other device. The command list below is the dry run.
 
 The image is factory build CP3A.261005.002.A1, the build the 2026-10-20 notes name, or a newer factory build, never an older one. Its bootloader image is `bootloader-felix-felix-17.0-15902555.img`. `version-bootloader` must be `felix-17.0-15902555`. If it is not, stop and ask. Do not flash that bootloader image. Its radio image is `radio-felix-g5300q-260604-260807-b-16036236.img`. `version-baseband` must be `g5300q-260604-260807-B-16036236`. If it is not, stop and ask. Do not flash the radio.
 
@@ -223,21 +223,49 @@ fastboot -s <serial> getvar slot-retry-count:a
 fastboot -s <serial> getvar slot-retry-count:b
 ```
 
+The image's `fastboot-info.txt` is what `fastboot update` writes. Felix's file lists:
+
+```
+flash boot
+flash init_boot
+flash dtbo
+flash vendor_kernel_boot
+flash pvmfw
+flash vendor_boot
+flash --apply-vbmeta vbmeta
+flash vbmeta_system
+flash vbmeta_vendor
+reboot fastboot
+update-super
+flash system
+flash system_dlkm
+flash system_ext
+flash product
+flash vendor
+flash vendor_dlkm
+flash --slot-other system system_other.img
+if-wipe erase userdata
+if-wipe erase metadata
+```
+
+This step keeps that file's slot A flashes and drops `update-super`, the `--slot-other` line, and both erases. The names in the file are unsuffixed because `fastboot update` uses the current slot. Here every partition name is `_a`.
+
 From the unpacked factory image, still in the bootloader, and only these:
 
 ```
 fastboot -s <serial> flash boot_a boot.img
 fastboot -s <serial> flash init_boot_a init_boot.img
-fastboot -s <serial> flash vendor_boot_a vendor_boot.img
-fastboot -s <serial> flash vendor_kernel_boot_a vendor_kernel_boot.img
 fastboot -s <serial> flash dtbo_a dtbo.img
-fastboot -s <serial> flash vbmeta_a vbmeta.img
+fastboot -s <serial> flash vendor_kernel_boot_a vendor_kernel_boot.img
+fastboot -s <serial> flash pvmfw_a pvmfw.img
+fastboot -s <serial> flash vendor_boot_a vendor_boot.img
+fastboot -s <serial> flash --apply-vbmeta vbmeta_a vbmeta.img
 fastboot -s <serial> flash vbmeta_system_a vbmeta_system.img
 fastboot -s <serial> flash vbmeta_vendor_a vbmeta_vendor.img
 fastboot -s <serial> reboot fastboot
 ```
 
-Then in fastbootd, the `_a` logical partitions that image's `super` carries. Not `super` itself, and not `update-super`.
+Then in fastbootd, the `_a` logical partitions that file lists. Not `super` itself, and not `update-super`. Before each of these, fastboot resizes the partition to the image's size. That rewrites the partition table at the start of `super` for slot A. It is part of writing the `_a` logical partitions, and this exception covers it. It is not a flash of `super`, and it is not an unsuffixed write.
 
 ```
 fastboot -s <serial> flash system_a system.img
@@ -250,7 +278,7 @@ fastboot -s <serial> flash vendor_dlkm_a vendor_dlkm.img
 
 If a logical flash refuses because the layout cannot take it, stop and ask. Do not flash `super` to make it fit.
 
-Do not flash `bootloader_a`, `radio_a`, `pvmfw`, `abl`, `bl1`, `bl2`, `bl31`, `gsa`, `ldfw`, `modem`, `pbl`, or `tzsw`. The image contains those files. They are not this write. Do not flash `system_other.img`, and do not use `--slot-other`. Do not flash `super`, `userdata`, `misc`, `metadata`, `devinfo`, `persist`, `efs`, `efs_backup`, `modem_userdata`, `modem_a`, or `modem_b`. Do not flash anything unsuffixed, and nothing `_b`. Do not relock. Do not run the image's `flash-all.sh`. It flashes the bootloader and the radio and wipes `userdata`.
+Do not flash `bootloader_a`, `radio_a`, `abl`, `bl1`, `bl2`, `bl31`, `gsa`, `ldfw`, `modem`, `pbl`, or `tzsw`. The image contains those files. They are not in `fastboot-info.txt`. They are not this write. Do not flash `system_other.img`, and do not use `--slot-other`. Do not flash `super`, `userdata`, `misc`, `metadata`, `devinfo`, `persist`, `efs`, `efs_backup`, `modem_userdata`, `modem_a`, or `modem_b`. Do not flash anything unsuffixed, and nothing `_b`. Do not relock. Do not run the image's `flash-all.sh`. It flashes the bootloader and the radio and wipes `userdata`.
 
 Then:
 
@@ -276,7 +304,7 @@ The fresh backup is taken after that, from Linux on slot B, read-only, of `efs`,
 
 **Rollback:** `fastboot -s <serial> --set-active=b` from the buttons. Do not mark slot B successful.
 
-**Risk:** a slot A write the tools do not perform, including `vbmeta_a` and the slot A logical partitions, and an Android boot that rewrites the calibration partitions. The backup comes after the return to slot B, because stock cannot take it.
+**Risk:** a slot A write the tools do not perform, including `vbmeta_a`, `pvmfw_a`, the slot A logical partitions, and the resize of those partitions in `super`'s metadata. An Android boot rewrites the calibration partitions. The backup comes after the return to slot B, because stock cannot take it.
 
 ### 9. Request the attention line
 
