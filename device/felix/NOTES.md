@@ -7,7 +7,8 @@ Findings from real hardware, newest first. [BRINGUP-M1.md](BRINGUP-M1.md) is the
 
 - **Cover tear source.** On the earlier cover-rate boot, DECON1 `TRIG_CON` (`0x1c241030`) read `0x00003061` before the select, source DDI0. One store of `0x01003061` locked the host counter to the cover tear, DDI1, on `gpp0-4`. That is the finding from the issue #3 report. The inner pair is the DDI0 form at DECON0 `0x1c240030`.
 - **This boot.** `uname -r` was `7.3.0-rc6-omamobile-push1-g485f83c27e5c-dirty`, slot B. The init wrote both pairs before SSH. After the boot, cover `TRIG_CON` read `0x01003061` and inner `TRIG_CON` read `0x00003061`. The DTB reserved `fac00000-fbb7ffff`. That reservation is linux-omarchy-mobile#72, which had not merged. The booted kernel was not that pull request's head.
-- **What was on the panels.** Both simpledrm cards were connected. Hyprland listed the cover at 1080×2092 and the inner panel at 1840×2208, cover first. The session was running. This is not a brightness slider, a KMS mode, or DPMS.
+- **Why the inner splash is `0xfac00000`.** On that same release, before the range was reserved, DPP0 `RDMA_BASEADDR` (`0x1c0b0040`) read `fac00000` and `RDMA_IMG_SIZE` (`0x1c0b0018`) read `08a00730`, 1840×2208. That range was ordinary System RAM. After the reservation, `/proc/iomem` showed `fac00000-fbb7ffff : reserved`. It is the address DECON0 was already scanning, not a copy chosen because the 7 Pro tree names the same number.
+- **What was on the panels.** Both simpledrm cards were connected. Hyprland listed the cover at 1080×2092 and the inner panel at 1840×2208, cover first, so the inner card was a second output rather than the splash. The session was running. This is not a brightness slider, a KMS mode, or DPMS.
 - **The refresh oneshot was still installed.** `omamobile-cover-rate.service` was enabled and ran after the init's pair. Its line was 124.0 Hz, underrun clear, DDI1 already selected. It is not the descriptor change.
 
 ## 2026-10-26: the power key and the GPU in the published kernel
@@ -76,4 +77,4 @@ The stock capture's build is `google/felix/felix:17/CP3A.261005.002.A1/202610060
 | Inner panel | 2208×1840, 120 Hz, DSI port 0. Not described in the board file | [V] `dumpsys display`; Google `gs201-felix-display.dtsi` |
 | Slots after the GrapheneOS reinstall | A successful and current. B bootable, not yet successful, not unbootable | [V] `fastboot getvar` |
 
-The framebuffer address is not copied from the Pixel 7 Pro. On that phone ABL injects the splash carve-out, and the 7 Pro tree names `0xfac00000`. Using that address here would `no-map` the wrong RAM if the Fold's splash lives elsewhere.
+The cover framebuffer is not the Pixel 7 Pro's splash. The inner address is the later DPP0 read in the 2026-10-27 section, not a copy taken from the 7 Pro tree before that read.
