@@ -1,7 +1,7 @@
 <!-- SPDX-License-Identifier: MIT -->
 # Pixel Fold cover touch: reports
 
-Status, 2026-10-27. The report path is linux-omarchy-mobile#48, merged, head `0e8be406f`. #32 and #41 have merged. `salixp.c` blob `c1752a85` is the stable name for the step 8 boot. That boot was packed release `7.3.0-rc6-omamobile-push1-gaa42f8a8c1bf`, the same tree as published head `aa42f8a8c` before the rebase. The rebase keeps the blob. Head `0e8be406f` fails probe on config CRC events `0x20` and `0x21` and on a missing scan echo. Step 0 is against Google's felix driver at tag `android-14.0.0_r0.102`.
+Status, 2026-10-27. The report path is linux-omarchy-mobile#48, merged, head `0e8be406f`. #32 and #41 have merged. omarchy-mobile#82 has merged. The notes keep its 2026-10-27 section above this plan's section. `salixp.c` blob `c1752a85` is the stable name for the step 8 boot. That boot was packed release `7.3.0-rc6-omamobile-push1-gaa42f8a8c1bf`, the same tree as published head `aa42f8a8c` before the rebase. The rebase keeps the blob. Head `0e8be406f` fails probe on config CRC events `0x20` and `0x21` and on a missing scan echo. Step 0 is against Google's felix driver at tag `android-14.0.0_r0.102`.
 
 The power key is linux-omarchy-mobile#41, merged. Touch in `docs/DEVICES.md` is WIP (cover chip id). Buttons is works.
 
@@ -73,7 +73,7 @@ The report path is linux-omarchy-mobile#48. Step 8 booted it as a packed image. 
 
 Requesting attention while it sits low storms the interrupt line. A guessed flash program can leave the cover controller without firmware. Enabling the main PMIC to reach LDO25M and LDO26M is the same risk as the chip-id gate: other rails register, and an Android slot A boot would rewrite the calibration partitions.
 
-Slot A was rewritten on purpose to another Omarchy Mobile test build. The date, the tool, which of `boot_a`, `init_boot_a`, `vendor_boot_a`, `vendor_kernel_boot_a` and `dtbo_a` were written, and whether `vbmeta` was touched, are not recorded. Neither slot holds Android, so there is no fallback. The way back is fastboot from the buttons and the factory image: the build the 2026-10-20 capture names, or a newer one, never an older one. The 2026-10-27 copy is not a baseline. It is the current contents, and the cause of the change is unknown. The 2026-10-16 set stays beside it. The baseline for any later PMIC step is the backup taken after stock's first boot on slot A.
+Slot A was rewritten on purpose to another Omarchy Mobile test build. The date, the tool, which of `boot_a`, `init_boot_a`, `vendor_boot_a`, `vendor_kernel_boot_a` and `dtbo_a` were written, and whether `vbmeta` was touched, are not recorded. `super`'s slot A has not been read. On 2026-10-22 slot A was GrapheneOS, and the later rewrite does not say it touched `super`. Neither slot holds Android, so there is no fallback. The way back is fastboot from the buttons and step 8a, which has not been agreed. The 2026-10-27 copy is not a baseline. It is the current contents, and the cause of the change is unknown. The 2026-10-16 set stays beside it. The baseline for any later PMIC step is the backup taken after the return to slot B from stock's first boot on slot A.
 
 ## Runbook
 
@@ -199,25 +199,88 @@ Diff `regulator_summary` after the `salixp` load against the snapshot taken afte
 
 ### 8a. Restore stock Android on slot A
 
-Not run. Written 2026-10-27 for agreement first. This is a slot A write, outside everything the tools allow. Do not run it until it is agreed in this review.
+Not run. Written 2026-10-27 for agreement first, and revised the same day from the review. This is a slot A write, outside everything the tools allow. It is a named, one-time exception to CONTRIBUTING.md §3.1 for this phone, run by hand. It does not extend to a tool or to any other device. Do not run it until it is agreed in this review. The command list below is the dry run.
 
-The image is factory build CP3A.261005.002.A1, the build the 2026-10-20 capture names, or a newer factory build, never an older one. Before any write, `fastboot getvar` must show product `felix` and an unlocked bootloader, and `version-bootloader` and `version-baseband` must match that image, or the image must be newer. The serial is checked there and is not written in this file.
+The image is factory build CP3A.261005.002.A1, the build the 2026-10-20 notes name, or a newer factory build, never an older one. Its bootloader image is `bootloader-felix-felix-17.0-15902555.img`. `version-bootloader` must be `felix-17.0-15902555`. If it is not, stop and ask. Do not flash that bootloader image. Its radio image is `radio-felix-g5300q-260604-260807-b-16036236.img`. `version-baseband` must be `g5300q-260604-260807-B-16036236`. If it is not, stop and ask. Do not flash the radio.
 
-Write only `boot_a`, `init_boot_a`, `vendor_boot_a`, `vendor_kernel_boot_a` and `dtbo_a`, each with that suffix. Do not write the bootloader, the radio, `vbmeta`, `userdata`, `efs`, `persist`, `modem_userdata`, `modem_a`, `modem_b`, `devinfo`, or any slot B image. Do not run an unsuffixed `fastboot flash`. Do not relock. Keep `userdata`. Decline a wipe. Stop if Android or the tool offers to format it.
+`super`'s slot A is not known. On 2026-10-22 slot A was GrapheneOS. The later rewrite is recorded only for the five boot images, and whether `vbmeta` was touched is not recorded. `super` and its logical partitions are not in that record, and they have not been read. They may still be GrapheneOS, or something else. Five stock boot images on top of that would not be stock Android, and nobody can say what that boot does, including to `efs` and `persist`. The write is the whole of stock's slot A, and nothing else, so the boot is not that mix.
 
-Then `fastboot --set-active=a` and boot, attended. After that first stock boot, take a fresh read-only backup of `efs`, `efs_backup`, `modem_userdata` and `persist`. That copy is the baseline for step 9. Then `fastboot --set-active=b`. If the phone comes back on A, do not load drivers.
+Every command is `fastboot -s <serial> …`. The placeholder stays in this file. The real serial is checked on the machine and is not written here. A check once does not pin a later command.
 
-**Expect / pass:** slot A boots that factory build, `userdata` is still the Linux root, the backup above exists, and slot B is current again.
+Before any write, record these. Product must be `felix`. The bootloader must be unlocked.
 
-**Stop:** the product is not `felix`, the bootloader is locked, the image is older than the capture, any forbidden partition would be written, or a wipe is offered.
+```
+fastboot -s <serial> getvar product
+fastboot -s <serial> getvar unlocked
+fastboot -s <serial> getvar version-bootloader
+fastboot -s <serial> getvar version-baseband
+fastboot -s <serial> getvar current-slot
+fastboot -s <serial> getvar slot-successful:a
+fastboot -s <serial> getvar slot-successful:b
+fastboot -s <serial> getvar slot-unbootable:a
+fastboot -s <serial> getvar slot-unbootable:b
+fastboot -s <serial> getvar slot-retry-count:a
+fastboot -s <serial> getvar slot-retry-count:b
+```
 
-**Rollback:** `fastboot --set-active=b` from the buttons. Do not mark slot B successful.
+From the unpacked factory image, still in the bootloader, and only these:
 
-**Risk:** a slot A write the tools do not perform, and an Android boot that rewrites the calibration partitions. That rewrite is why the backup comes after the boot, not before.
+```
+fastboot -s <serial> flash boot_a boot.img
+fastboot -s <serial> flash init_boot_a init_boot.img
+fastboot -s <serial> flash vendor_boot_a vendor_boot.img
+fastboot -s <serial> flash vendor_kernel_boot_a vendor_kernel_boot.img
+fastboot -s <serial> flash dtbo_a dtbo.img
+fastboot -s <serial> flash vbmeta_a vbmeta.img
+fastboot -s <serial> flash vbmeta_system_a vbmeta_system.img
+fastboot -s <serial> flash vbmeta_vendor_a vbmeta_vendor.img
+fastboot -s <serial> reboot fastboot
+```
+
+Then in fastbootd, the `_a` logical partitions that image's `super` carries. Not `super` itself, and not `update-super`.
+
+```
+fastboot -s <serial> flash system_a system.img
+fastboot -s <serial> flash system_dlkm_a system_dlkm.img
+fastboot -s <serial> flash system_ext_a system_ext.img
+fastboot -s <serial> flash product_a product.img
+fastboot -s <serial> flash vendor_a vendor.img
+fastboot -s <serial> flash vendor_dlkm_a vendor_dlkm.img
+```
+
+If a logical flash refuses because the layout cannot take it, stop and ask. Do not flash `super` to make it fit.
+
+Do not flash `bootloader_a`, `radio_a`, `pvmfw`, `abl`, `bl1`, `bl2`, `bl31`, `gsa`, `ldfw`, `modem`, `pbl`, or `tzsw`. The image contains those files. They are not this write. Do not flash `system_other.img`, and do not use `--slot-other`. Do not flash `super`, `userdata`, `misc`, `metadata`, `devinfo`, `persist`, `efs`, `efs_backup`, `modem_userdata`, `modem_a`, or `modem_b`. Do not flash anything unsuffixed, and nothing `_b`. Do not relock. Do not run the image's `flash-all.sh`. It flashes the bootloader and the radio and wipes `userdata`.
+
+Then:
+
+```
+fastboot -s <serial> --set-active=a
+fastboot -s <serial> reboot
+```
+
+Attended. Stock cannot use the Arch root, so expect a factory data reset offer, not a lock screen. Decline it. Confirming it erases the only Linux root. Go to fastboot with the buttons. Do not load drivers if the phone is still on A.
+
+From that fastboot:
+
+```
+fastboot -s <serial> --set-active=b
+fastboot -s <serial> reboot
+```
+
+The fresh backup is taken after that, from Linux on slot B, read-only, of `efs`, `efs_backup`, `modem_userdata` and `persist`. Stock has no root shell to read them, so it cannot be taken during the slot A boot. That copy is the baseline for step 9, whatever the stock boot reached. Record the before and after `getvar` slot variables in the notes. If the phone comes back on A, do not load drivers. Enter fastboot with the buttons and run `fastboot -s <serial> --set-active=b`.
+
+**Expect / pass:** the dry-run list is the only write, slot A offered a data reset rather than a lock screen and it was declined, `userdata` is still the Linux root, the backup above exists, the slot variables are in the notes, and slot B is current again.
+
+**Stop:** the product is not `felix`, the bootloader is locked, `version-bootloader` is not `felix-17.0-15902555`, `version-baseband` does not match the image, any command lacks `-s <serial>`, any forbidden partition would be written, a logical flash refuses, or the data reset is confirmed.
+
+**Rollback:** `fastboot -s <serial> --set-active=b` from the buttons. Do not mark slot B successful.
+
+**Risk:** a slot A write the tools do not perform, including `vbmeta_a` and the slot A logical partitions, and an Android boot that rewrites the calibration partitions. The backup comes after the return to slot B, because stock cannot take it.
 
 ### 9. Request the attention line
 
-Not run. Held. Not before stock is back on slot A and a fresh backup is taken after that boot. Written 2026-10-25, before any boot, for agreement first. Do not run until that agreement is in the review. The cover refresh oneshot is still installed. This step either disables it for that boot or lists it as the second change. The code that requests `gpa6-7` is not in #48. This step does not name a head. The boot, when agreed, is a `bin/omamobile push` of the head that contains that request, plus `tools/phone-smoke`. It is not a module built beside another release. The same slot rule as step 8 applies: read `androidboot.slot_suffix` from `/proc/bootconfig` before the reboot, and do not reboot unless it is B. If the phone comes back on A, do not load drivers. Enter fastboot with the buttons and run `fastboot --set-active=b`. That restores the retry count and does not mark the slot successful.
+Not run. Held. Not before stock is back on slot A and a fresh backup is taken after that boot. Written 2026-10-25, before any boot, for agreement first. Do not run until that agreement is in the review. The cover refresh oneshot is still installed. This step either disables it for that boot or lists it as the second change. The code that requests `gpa6-7` is not in #48. This step does not name a head. The boot, when agreed, is a `bin/omamobile push` of the head that contains that request, plus `tools/phone-smoke`. It is not a module built beside another release. The same slot rule as step 8 applies: read `androidboot.slot_suffix` from `/proc/bootconfig` before the reboot, and do not reboot unless it is B. If the phone comes back on A, do not load drivers. Enter fastboot with the buttons and run `fastboot -s <serial> --set-active=b`. That restores the retry count and does not mark the slot successful.
 
 Start a kmsg stream to the laptop first, the same way as step 8, and confirm both cluster watchdogs are inactive before any load. That check is not a reset. Load the mailbox, the ACPM protocol, and `sec-acpm` before any timer, if they are not already loaded from step 8. Save `regulator_summary` after `sec-acpm` and before the attention module. Arm the same feeder as step 8. If it does not arm, stop. Then arm a dead-man: `systemd-run --unit=salixp-deadman --on-active=90` that unbinds `salixp` and does not leave the IRQ requested. Load the module that requests attention. Confirm with `tools/phone-ssh --fresh true`, and only then stop the dead-man and magic-close the feeder. If the confirmation does not arrive, leave both armed. An unbind cannot undo a hang. The feeder is the reset if the phone stops answering. The step is attended. The log stream is the record of that.
 
@@ -264,7 +327,7 @@ buttons                  ok     gpio-keys
 Wi-Fi, Bluetooth, battery, sound, sensors, cameras  skip
 ```
 
-On 2026-10-27 the six partitions were compared read-only with the 2026-10-16 backup. `efs`, `efs_backup`, `modem_userdata`, and `persist` differ. `modem_a` and `modem_b` match. No boot list exists between those two copies, so no Android boot can be named and a write from Linux cannot be ruled out. The 2026-10-27 copy is the current contents, cause of the change unknown. It is not a baseline. The 2026-10-16 set stays beside it. `devinfo` was in the 2026-10-16 set and was not copied on 2026-10-27, so it was not compared. It is expected to differ, because `set-active` and the retry counters write it. The sums stay off the repository. The cover refresh-rate oneshot does not reboot the phone and does not change slots. It is still installed. The only slot A landing in step 8 was the `push` reboot above. The journal has no slot field. The boot between the previous session and the step 8 `salixp` boot is the landing: kernel `7.3.0-rc6-omamobile-push1-g223035c3541c-dirty`, not the images just written to slot B, no `salixp`, and SSH. Its initramfs ran the storage guard. `efs`, `efs_backup`, `modem_userdata` and `persist` were set read-only. It is an initramfs from this repository, so that landing is not the Linux write that cannot be ruled out.
+On 2026-10-27 the six partitions were compared read-only with the 2026-10-16 backup. `efs`, `efs_backup`, `modem_userdata`, and `persist` differ. `modem_a` and `modem_b` match. No boot list exists between those two copies, so no Android boot can be named and a write from Linux cannot be ruled out. The 2026-10-27 copy is the current contents, cause of the change unknown. It is not a baseline. The 2026-10-16 set stays beside it. `devinfo` was in the 2026-10-16 set and was not copied on 2026-10-27, so it was not compared. It is expected to differ, because `set-active` and the retry counters write it. The sums stay off the repository. The cover refresh-rate oneshot does not reboot the phone and does not change slots. It is still installed. The only slot A landing in step 8 was the `push` reboot above. The journal has no slot field. The boot between the previous session and the step 8 `salixp` boot is the landing: kernel `7.3.0-rc6-omamobile-push1-g223035c3541c-dirty`. That commit is not in the published tree. It was a local build. It is not the images just written to slot B, no `salixp`, and SSH. Its initramfs ran the storage guard. `efs`, `efs_backup`, `modem_userdata` and `persist` were set read-only. It is an initramfs from this repository, so that landing is not the Linux write that cannot be ruled out.
 
 2026-10-24. Fourth hand-load on the same boot. The scan command was written. The hardware-register preamble was not. No flash write. No interrupt request.
 
