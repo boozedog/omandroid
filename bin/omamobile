@@ -286,8 +286,12 @@ initramfs_config() {
     [[ $DEV_INITRAMFS_FB_WAIT == 1 ]] || die "INITRAMFS_FB_WAIT must be 1 or absent"
   fi
   if [[ -n ${DEV_SIMPLEFB_TRIG_CON:-} ]]; then
-    [[ $DEV_SIMPLEFB_TRIG_CON =~ ^0x[0-9a-fA-F]+[[:space:]]+0x[0-9a-fA-F]+$ ]] \
-      || die "SIMPLEFB_TRIG_CON must be \"0xADDR 0xVALUE\" (hex)"
+    local line
+    while IFS= read -r line; do
+      [[ -z $line ]] && continue
+      [[ $line =~ ^0x[0-9a-fA-F]+[[:space:]]+0x[0-9a-fA-F]+$ ]] \
+        || die "SIMPLEFB_TRIG_CON must be \"0xADDR 0xVALUE\" lines"
+    done <<< "$DEV_SIMPLEFB_TRIG_CON"
   fi
   if [[ -n ${DEV_BRINGUP_PROBE:-} ]]; then
     [[ $DEV_BRINGUP_PROBE == 1 ]] || die "BRINGUP_PROBE must be 1 or absent"
@@ -307,8 +311,8 @@ initramfs_config() {
   [[ -n $etc ]] || return 0
   mkdir -p "$etc"
 
-  # This device's simplefb trigger, and nothing else's. The init writes
-  # exactly this pair, and only when the board matches COMPATIBLE.
+  # This device's simplefb triggers, and nothing else's. The init writes
+  # each pair, and only when the board matches COMPATIBLE.
   # Absent or empty: it writes no display register. The bring-up probe,
   # the module loader and the USB switch use the same COMPATIBLE file, so it
   # is packed for any of them.
