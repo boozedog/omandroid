@@ -259,11 +259,13 @@ fastboot -s <serial> flash dtbo_a dtbo.img
 fastboot -s <serial> flash vendor_kernel_boot_a vendor_kernel_boot.img
 fastboot -s <serial> flash pvmfw_a pvmfw.img
 fastboot -s <serial> flash vendor_boot_a vendor_boot.img
-fastboot -s <serial> flash --apply-vbmeta vbmeta_a vbmeta.img
+fastboot -s <serial> flash vbmeta_a vbmeta.img
 fastboot -s <serial> flash vbmeta_system_a vbmeta_system.img
 fastboot -s <serial> flash vbmeta_vendor_a vbmeta_vendor.img
 fastboot -s <serial> reboot fastboot
 ```
+
+`--apply-vbmeta` stays in the quoted file, where it is `fastboot-info.txt` syntax. It is not a fastboot command-line option, so the `vbmeta_a` line above does not carry it. Fastboot applies its `vbmeta*` handling by itself, and this step does not use `--disable-verity`.
 
 Then in fastbootd, the `_a` logical partitions that file lists. Not `super` itself, and not `update-super`. Before each of these, fastboot resizes the partition to the image's size. That rewrites the partition table at the start of `super` for slot A. It is part of writing the `_a` logical partitions, and this exception covers it. It is not a flash of `super`, and it is not an unsuffixed write.
 
