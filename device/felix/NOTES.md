@@ -3,6 +3,15 @@
 
 Findings from real hardware, newest first. [BRINGUP-M1.md](BRINGUP-M1.md) is the first-light record.
 
+## 2026-10-29: stock slot A reached recovery
+
+- **Step 8a ran after the merge.** The agreed slot A list was written by hand. The bootloader image and the radio were not. Nothing unsuffixed was written, and nothing on slot B. `userdata` was not erased. The bootloader stayed unlocked. The detail and the slot variables are in [COVER-TOUCH-REPORTS-PLAN.md](COVER-TOUCH-REPORTS-PLAN.md).
+- **`reboot fastboot` from slot B boots Linux.** That slot has no Android fastbootd. The phone came back on slot B with `androidboot.mode` still `recovery` and a verification error. No drivers were loaded. The logical partitions were written only after `set-active a` and a second `reboot fastboot`, which did enter fastbootd. That is a deviation from the written order. The writes were still only the agreed partitions. Each logical flash resized the slot A partition and finished. Four images printed `Invalid sparse file format at header magic` and were still sent. No logical flash refused.
+- **Stock reached recovery, not a lock screen.** The offer was Try Again or Factory Data Reset. Try Again was chosen. The phone restarted and kept restarting. The wipe was not confirmed. The bootloader fell back to slot B. That was not `set-active b`. The Linux root was still there. The cover session started on its own. Touch was present.
+- **The 2026-10-27 sentence is the state before this write.** Neither slot held Android then. Slot A now holds the stock images from this step. The first boot of those images reached recovery.
+- **Backup.** From Linux on slot B after that fallback, `efs`, `efs_backup`, `modem_userdata`, and `persist` were copied read-only. All four differ from the 2026-10-16 set and from the 2026-10-27 copy. This copy is the baseline for whatever that recovery boot reached. The sums stay off the repository. `devinfo` was not copied. It is expected to differ: `set-active` and the retry counters write it.
+- **Slot B is current, and not marked successful.** Before the return command, the bootloader already had slot B selected and successful, and slot A had no retries left. `set-active b` restored slot B's retry count to 3 and cleared the successful bit. The next boots of slot B spend a retry until that bit is set. It has not been set.
+
 ## 2026-10-27: both triggers unmasked
 
 - **Cover tear source.** On the earlier cover-rate boot, DECON1 `TRIG_CON` (`0x1c241030`) read `0x00003061` before the select, source DDI0. One store of `0x01003061` locked the host counter to the cover tear, DDI1, on `gpp0-4`. That is the finding from the issue #3 report. The inner pair is the DDI0 form at DECON0 `0x1c240030`.
